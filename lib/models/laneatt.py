@@ -5,6 +5,7 @@ import torch
 import numpy as np
 import torch.nn as nn
 from torchvision.models import resnet18, resnet34
+import torch.nn.functional as F
 
 from nms import nms
 from lib.lane import Lane
@@ -13,9 +14,79 @@ from lib.focal_loss import FocalLoss
 from .resnet import resnet122 as resnet122_cifar
 from .matching import match_proposals_with_targets
 
+class RESA(nn.Module):
+    def __init__(self):
+        super(RESA, self).__init__()
+        self.iter = 5 #cfg.resa.iter
+        chan = 64 #cfg.resa.input_channel
+        fea_stride = 32 #cfg.backbone.fea_stride
+        self.height = 360 // fea_stride + 1 #cfg.img_height // fea_stride
+        self.width = 640 // fea_stride #cfg.img_width // fea_stride
+        self.alpha = 2.0 #cfg.resa.alpha
+        conv_stride = 9 #cfg.resa.conv_stride
+
+        for i in range(self.iter):
+            conv_vert1 = nn.Conv2d(
+                chan, chan, (1, conv_stride),
+                padding=(0, conv_stride//2), groups=1, bias=False)
+            conv_vert2 = nn.Conv2d(
+                chan, chan, (1, conv_stride),
+                padding=(0, conv_stride//2), groups=1, bias=False)
+
+            setattr(self, 'conv_d'+str(i), conv_vert1)
+            setattr(self, 'conv_u'+str(i), conv_vert2)
+
+            conv_hori1 = nn.Conv2d(
+                chan, chan, (conv_stride, 1),
+                padding=(conv_stride//2, 0), groups=1, bias=False)
+            conv_hori2 = nn.Conv2d(
+                chan, chan, (conv_stride, 1),
+                padding=(conv_stride//2, 0), groups=1, bias=False)
+
+            setattr(self, 'conv_r'+str(i), conv_hori1)
+            setattr(self, 'conv_l'+str(i), conv_hori2)
+
+            idx_d = (torch.arange(self.height) + self.height //
+                     2**(self.iter - i)) % self.height
+            # print(idx_d)
+            setattr(self, 'idx_d'+str(i), idx_d)
+
+            idx_u = (torch.arange(self.height) - self.height //
+                     2**(self.iter - i)) % self.height
+            setattr(self, 'idx_u'+str(i), idx_u)
+
+            idx_r = (torch.arange(self.width) + self.width //
+                     2**(self.iter - i)) % self.width
+            setattr(self, 'idx_r'+str(i), idx_r)
+
+            idx_l = (torch.arange(self.width) - self.width //
+                     2**(self.iter - i)) % self.width
+            setattr(self, 'idx_l'+str(i), idx_l)
+
+    def forward(self, x):
+        x = x.clone() #2*128*46*80
+        # print(x.shape)
+        # print(x.shape)
+
+        for direction in ['d', 'u']:
+            for i in range(self.iter):
+                conv = getattr(self, 'conv_' + direction + str(i))
+                idx = getattr(self, 'idx_' + direction + str(i))
+                # print(idx)
+                # print(x[..., idx, :].shape)
+                x.add_(self.alpha * F.relu(conv(x[..., idx, :])))
+
+        for direction in ['r', 'l']:
+            for i in range(self.iter):
+                conv = getattr(self, 'conv_' + direction + str(i))
+                idx = getattr(self, 'idx_' + direction + str(i))
+                x.add_(self.alpha * F.relu(conv(x[..., idx])))
+
+        return x
 
 class LaneATT(nn.Module):
     def __init__(self,
+                 cfg = None,
                  backbone='resnet34',
                  pretrained_backbone=True,
                  S=72,
@@ -26,6 +97,7 @@ class LaneATT(nn.Module):
                  anchor_feat_channels=64):
         super(LaneATT, self).__init__()
         # Some definitions
+        self.cfg = cfg
         self.feature_extractor, backbone_nb_channels, self.stride = get_backbone(backbone, pretrained_backbone)
         self.img_w = img_w
         self.n_strips = S - 1
@@ -58,6 +130,7 @@ class LaneATT(nn.Module):
             self.anchor_feat_channels, fmap_w, self.fmap_h)
 
         # Setup and initialize layers
+        self.resa = RESA()
         self.conv1 = nn.Conv2d(backbone_nb_channels, self.anchor_feat_channels, kernel_size=1)
         self.cls_layer = nn.Linear(2 * self.anchor_feat_channels * self.fmap_h, 2)
         self.reg_layer = nn.Linear(2 * self.anchor_feat_channels * self.fmap_h, self.n_offsets + 1)
@@ -69,26 +142,38 @@ class LaneATT(nn.Module):
 
     def forward(self, x, conf_threshold=None, nms_thres=0, nms_topk=3000):
         batch_features = self.feature_extractor(x)
-        batch_features = self.conv1(batch_features)
-        batch_anchor_features = self.cut_anchor_features(batch_features)
+        batch_features = self.conv1(batch_features) #减小特征维数
+        batch_anchor_features = self.cut_anchor_features(batch_features) # 4*1000*64*11*1
+        # print(batch_anchor_features.shape)
+        if self.cfg['resa']:
+            # Generate RESA features
+            resa_batch_features  = self.resa(batch_features)
+            resa_anchor_featrues = self.cut_anchor_features(resa_batch_features)
 
-        # Join proposals from all images into a single proposals features batch
-        batch_anchor_features = batch_anchor_features.view(-1, self.anchor_feat_channels * self.fmap_h)
+            # Join proposals from all images into a single proposals features batch
+            batch_anchor_features = batch_anchor_features.view(-1, self.anchor_feat_channels * self.fmap_h) #4000*704
+            # print(batch_anchor_features.shape)
+            resa_anchor_featrues = resa_anchor_featrues.view(-1, self.anchor_feat_channels * self.fmap_h)
+            batch_anchor_features = torch.cat((resa_anchor_featrues, batch_anchor_features), dim=1)
 
-        # Add attention features
-        softmax = nn.Softmax(dim=1)
-        scores = self.attention_layer(batch_anchor_features)
-        attention = softmax(scores).reshape(x.shape[0], len(self.anchors), -1)
-        attention_matrix = torch.eye(attention.shape[1], device=x.device).repeat(x.shape[0], 1, 1)
-        non_diag_inds = torch.nonzero(attention_matrix == 0., as_tuple=False)
-        attention_matrix[:] = 0
-        attention_matrix[non_diag_inds[:, 0], non_diag_inds[:, 1], non_diag_inds[:, 2]] = attention.flatten()
-        batch_anchor_features = batch_anchor_features.reshape(x.shape[0], len(self.anchors), -1)
-        attention_features = torch.bmm(torch.transpose(batch_anchor_features, 1, 2),
-                                       torch.transpose(attention_matrix, 1, 2)).transpose(1, 2)
-        attention_features = attention_features.reshape(-1, self.anchor_feat_channels * self.fmap_h)
-        batch_anchor_features = batch_anchor_features.reshape(-1, self.anchor_feat_channels * self.fmap_h)
-        batch_anchor_features = torch.cat((attention_features, batch_anchor_features), dim=1)
+        else:
+            # Join proposals from all images into a single proposals features batch
+            batch_anchor_features = batch_anchor_features.view(-1, self.anchor_feat_channels * self.fmap_h) #4000*704
+
+            # Add attention features
+            softmax = nn.Softmax(dim=1)
+            scores = self.attention_layer(batch_anchor_features) #4000*999
+            attention = softmax(scores).reshape(x.shape[0], len(self.anchors), -1) #4*1000*999
+            attention_matrix = torch.eye(attention.shape[1], device=x.device).repeat(x.shape[0], 1, 1) #4*1000*1000
+            non_diag_inds = torch.nonzero(attention_matrix == 0., as_tuple=False) #3996000*3
+            attention_matrix[:] = 0
+            attention_matrix[non_diag_inds[:, 0], non_diag_inds[:, 1], non_diag_inds[:, 2]] = attention.flatten() #3996000
+            batch_anchor_features = batch_anchor_features.reshape(x.shape[0], len(self.anchors), -1) #4*1000#704(64*11)
+            attention_features = torch.bmm(torch.transpose(batch_anchor_features, 1, 2),
+                                           torch.transpose(attention_matrix, 1, 2)).transpose(1, 2)
+            attention_features = attention_features.reshape(-1, self.anchor_feat_channels * self.fmap_h)
+            batch_anchor_features = batch_anchor_features.reshape(-1, self.anchor_feat_channels * self.fmap_h)
+            batch_anchor_features = torch.cat((attention_features, batch_anchor_features), dim=1)
 
         # Predict
         cls_logits = self.cls_layer(batch_anchor_features)
@@ -105,11 +190,11 @@ class LaneATT(nn.Module):
         reg_proposals[:, :, 4:] += reg
 
         # Apply nms
-        proposals_list = self.nms(reg_proposals, attention_matrix, nms_thres, nms_topk, conf_threshold)
+        proposals_list = self.nms(reg_proposals, nms_thres, nms_topk, conf_threshold)
 
         return proposals_list
 
-    def nms(self, batch_proposals, batch_attention_matrix, nms_thres, nms_topk, conf_threshold):
+    def nms_old(self, batch_proposals, batch_attention_matrix, nms_thres, nms_topk, conf_threshold):
         softmax = nn.Softmax(dim=1)
         proposals_list = []
         for proposals, attention_matrix in zip(batch_proposals, batch_attention_matrix):
@@ -132,6 +217,32 @@ class LaneATT(nn.Module):
             anchor_inds = anchor_inds[keep]
             attention_matrix = attention_matrix[anchor_inds]
             proposals_list.append((proposals, self.anchors[keep], attention_matrix, anchor_inds))
+
+        return proposals_list
+
+    def nms(self, batch_proposals, nms_thres, nms_topk, conf_threshold):
+        softmax = nn.Softmax(dim=1)
+        proposals_list = []
+        for proposals in batch_proposals:
+            anchor_inds = torch.arange(batch_proposals.shape[1], device=proposals.device)
+            # The gradients do not have to (and can't) be calculated for the NMS procedure
+            with torch.no_grad():
+                scores = softmax(proposals[:, :2])[:, 1]
+                if conf_threshold is not None:
+                    # apply confidence threshold
+                    above_threshold = scores > conf_threshold
+                    proposals = proposals[above_threshold]
+                    scores = scores[above_threshold]
+                    anchor_inds = anchor_inds[above_threshold]
+                if proposals.shape[0] == 0:
+                    proposals_list.append((proposals[[]], self.anchors[[]], 1, None))
+                    continue
+                keep, num_to_keep, _ = nms(proposals, scores, overlap=nms_thres, top_k=nms_topk)
+                keep = keep[:num_to_keep]
+            proposals = proposals[keep]
+            anchor_inds = anchor_inds[keep]
+            # attention_matrix = attention_matrix[anchor_inds]
+            proposals_list.append((proposals, self.anchors[keep], 1, anchor_inds))
 
         return proposals_list
 
@@ -178,13 +289,13 @@ class LaneATT(nn.Module):
             # Regression targets
             reg_pred = positives[:, 4:]
             with torch.no_grad():
-                target = target[target_positives_indices]
+                target = target[target_positives_indices] #num_pos * 77
                 positive_starts = (positives[:, 2] * self.n_strips).round().long()
                 target_starts = (target[:, 2] * self.n_strips).round().long()
-                target[:, 4] -= positive_starts - target_starts
+                target[:, 4] -= positive_starts - target_starts  #？？why
                 all_indices = torch.arange(num_positives, dtype=torch.long)
                 ends = (positive_starts + target[:, 4] - 1).round().long()
-                invalid_offsets_mask = torch.zeros((num_positives, 1 + self.n_offsets + 1),
+                invalid_offsets_mask = torch.zeros((num_positives, 1 + self.n_offsets + 1), #pos*73
                                                    dtype=torch.int)  # length + S + pad
                 invalid_offsets_mask[all_indices, 1 + positive_starts] = 1
                 invalid_offsets_mask[all_indices, 1 + ends + 1] -= 1
@@ -192,7 +303,7 @@ class LaneATT(nn.Module):
                 invalid_offsets_mask = invalid_offsets_mask[:, :-1]
                 invalid_offsets_mask[:, 0] = False
                 reg_target = target[:, 4:]
-                reg_target[invalid_offsets_mask] = reg_pred[invalid_offsets_mask]
+                reg_target[invalid_offsets_mask] = reg_pred[invalid_offsets_mask] #将invalid的部分置为一样
 
             # Loss calc
             reg_loss += smooth_l1_loss(reg_pred, reg_target)
@@ -207,7 +318,7 @@ class LaneATT(nn.Module):
 
     def compute_anchor_cut_indices(self, n_fmaps, fmaps_w, fmaps_h):
         # definitions
-        n_proposals = len(self.anchors_cut)
+        n_proposals = len(self.anchors_cut) #1000
 
         # indexing
         unclamped_xs = torch.flip((self.anchors_cut[:, 5:] / self.stride).round().long(), dims=(1,))
@@ -219,7 +330,7 @@ class LaneATT(nn.Module):
         cut_ys = torch.arange(0, fmaps_h)
         cut_ys = cut_ys.repeat(n_fmaps * n_proposals)[:, None].reshape(n_proposals, n_fmaps, fmaps_h)
         cut_ys = cut_ys.reshape(-1, 1)
-        cut_zs = torch.arange(n_fmaps).repeat_interleave(fmaps_h).repeat(n_proposals)[:, None]
+        cut_zs = torch.arange(n_fmaps).repeat_interleave(fmaps_h).repeat(n_proposals)[:, None] #1000*64*11
 
         return cut_zs, cut_ys, cut_xs, invalid_mask
 
@@ -229,7 +340,6 @@ class LaneATT(nn.Module):
         n_proposals = len(self.anchors)
         n_fmaps = features.shape[1]
         batch_anchor_features = torch.zeros((batch_size, n_proposals, n_fmaps, self.fmap_h, 1), device=features.device)
-
         # actual cutting
         for batch_idx, img_features in enumerate(features):
             rois = img_features[self.cut_zs, self.cut_ys, self.cut_xs].view(n_proposals, n_fmaps, self.fmap_h, 1)

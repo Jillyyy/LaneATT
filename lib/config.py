@@ -22,10 +22,10 @@ class Config:
         return getattr(datasets,
                        self.config['datasets'][split]['type'])(**self.config['datasets'][split]['parameters'])
 
-    def get_model(self, **kwargs):
+    def get_model(self, cfg = None, **kwargs):
         name = self.config['model']['name']
         parameters = self.config['model']['parameters']
-        return getattr(models, name)(**parameters, **kwargs)
+        return getattr(models, name)(cfg = cfg, **parameters, **kwargs)
 
     def get_optimizer(self, model_parameters):
         return getattr(torch.optim, self.config['optimizer']['name'])(model_parameters,
