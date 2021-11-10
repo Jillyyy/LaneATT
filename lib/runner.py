@@ -73,7 +73,7 @@ class Runner:
         self.exp.train_end_callback()
 
     def eval(self, epoch, on_val=False, save_predictions=False):
-        model = self.cfg.get_model()
+        model = self.cfg.get_model(self.cfg)
         model_path = self.exp.get_checkpoint_path(epoch)
         self.logger.info('Loading model %s', model_path)
         model.load_state_dict(self.exp.get_epoch_model(epoch))
