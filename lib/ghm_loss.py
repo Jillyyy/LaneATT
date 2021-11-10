@@ -13,8 +13,8 @@ def _expand_binary_labels(labels, label_weights, label_channels):
         label_weights.size(0), label_channels)
     one_hot = torch.zeros(labels.size(0), label_channels, device=labels.device, dtype=labels.dtype)
     one_hot.scatter_(1, labels.unsqueeze(1), 1)
-    return bin_labels, bin_label_weights
-    # return one_hot, bin_label_weights
+    # return bin_labels, bin_label_weights
+    return one_hot, bin_label_weights
 
 
 
