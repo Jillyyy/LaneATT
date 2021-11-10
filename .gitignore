@@ -18,3 +18,6 @@ tmp.*
 *.pt
 *.pth
 *.un~
+
+*.slurm
+*.out
