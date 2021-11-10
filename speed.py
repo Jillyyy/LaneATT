@@ -29,7 +29,7 @@ def main():
     height, width = cfg['datasets']['test']['parameters']['img_size']
 
     if args.model_path is not None:
-        model.load_state_dict(torch.load(args.model_path)['model'])
+        model.load_state_dict(torch.load(args.model_path)['model'], strict = False)
 
     model.eval()
 
