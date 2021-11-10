@@ -10,6 +10,7 @@ import torch.nn.functional as F
 from nms import nms
 from lib.lane import Lane
 from lib.focal_loss import FocalLoss
+from lib.ghm_loss import GHMC
 
 from .resnet import resnet122 as resnet122_cifar
 from .matching import match_proposals_with_targets
@@ -247,7 +248,10 @@ class LaneATT(nn.Module):
         return proposals_list
 
     def loss(self, proposals_list, targets, cls_loss_weight=10):
-        focal_loss = FocalLoss(alpha=0.25, gamma=2.)
+        if self.cfg['ghm']:
+            ghm_loss = GHMC()
+        else:
+            focal_loss = FocalLoss(alpha=0.25, gamma=2.)
         smooth_l1_loss = nn.SmoothL1Loss()
         cls_loss = 0
         reg_loss = 0
@@ -260,7 +264,11 @@ class LaneATT(nn.Module):
                 # If there are no targets, all proposals have to be negatives (i.e., 0 confidence)
                 cls_target = proposals.new_zeros(len(proposals)).long()
                 cls_pred = proposals[:, :2]
-                cls_loss += focal_loss(cls_pred, cls_target).sum()
+                if self.cfg['ghm']:
+                    cls_label_weight = torch.ones_like(cls_target)
+                    cls_loss += ghm_loss(cls_pred, cls_target, cls_label_weight).sum()
+                else:
+                    cls_loss += focal_loss(cls_pred, cls_target).sum()
                 continue
             # Gradients are also not necessary for the positive & negative matching
             with torch.no_grad():
@@ -277,7 +285,11 @@ class LaneATT(nn.Module):
             if num_positives == 0:
                 cls_target = proposals.new_zeros(len(proposals)).long()
                 cls_pred = proposals[:, :2]
-                cls_loss += focal_loss(cls_pred, cls_target).sum()
+                if self.cfg['ghm']:
+                    cls_label_weight = torch.ones_like(cls_target)
+                    cls_loss += ghm_loss(cls_pred, cls_target, cls_label_weight).sum()
+                else:
+                    cls_loss += focal_loss(cls_pred, cls_target).sum()
                 continue
 
             # Get classification targets
@@ -307,7 +319,12 @@ class LaneATT(nn.Module):
 
             # Loss calc
             reg_loss += smooth_l1_loss(reg_pred, reg_target)
-            cls_loss += focal_loss(cls_pred, cls_target).sum() / num_positives
+            if self.cfg['ghm']:
+                cls_label_weight = torch.ones_like(cls_target)
+                cls_loss += ghm_loss(cls_pred, cls_target, cls_label_weight).sum() / num_positives
+            else:
+                cls_loss += focal_loss(cls_pred, cls_target).sum() / num_positives
+            # cls_loss += focal_loss(cls_pred, cls_target).sum() / num_positives
 
         # Batch mean
         cls_loss /= valid_imgs
