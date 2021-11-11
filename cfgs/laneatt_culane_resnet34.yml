@@ -30,6 +30,8 @@ lr_scheduler:
   name: CosineAnnealingLR
   parameters:
     T_max: 166650 # 15 * 11110 iterations
+resa: False
+ghm: False
 
 # Dataset settings
 datasets:
