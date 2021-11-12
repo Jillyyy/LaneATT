@@ -145,7 +145,7 @@ class LaneATT(nn.Module):
 
     def forward(self, x, conf_threshold=None, nms_thres=0, nms_topk=3000):
         batch_features = self.feature_extractor(x)
-        print(batch_features.shape)
+        # print(batch_features.shape)
         batch_features = self.conv1(batch_features) #减小特征维数
         batch_anchor_features = self.cut_anchor_features(batch_features) # 4*1000*64*11*1
         # print(batch_anchor_features.shape)
