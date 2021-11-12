@@ -5,13 +5,13 @@ seed: 0
 model:
   name: LaneATT
   parameters:
-    backbone: resnet34
+    backbone: mobilenetv2
     S: &S 72
     topk_anchors: 1000
     anchors_freq_path: 'data/tusimple_anchors_freq.pt'
     img_h: &img_h 360
     img_w: &img_w 640
-batch_size: 8
+batch_size: 4
 epochs: 100
 loss_parameters: {}
 train_parameters:
@@ -30,10 +30,9 @@ lr_scheduler:
   name: CosineAnnealingLR
   parameters:
     T_max: 45400 # 100 * 454 iterations
-resa: True
+resa: False
 ghm: False
 add_resa: False
-
 
 # Dataset settings
 datasets:

@@ -4,7 +4,7 @@ import cv2
 import torch
 import numpy as np
 import torch.nn as nn
-from torchvision.models import resnet18, resnet34
+from torchvision.models import resnet18, resnet34, mobilenet_v2
 import torch.nn.functional as F
 
 from nms import nms
@@ -135,6 +135,8 @@ class LaneATT(nn.Module):
         self.conv1 = nn.Conv2d(backbone_nb_channels, self.anchor_feat_channels, kernel_size=1)
         self.cls_layer = nn.Linear(2 * self.anchor_feat_channels * self.fmap_h, 2)
         self.reg_layer = nn.Linear(2 * self.anchor_feat_channels * self.fmap_h, self.n_offsets + 1)
+        self.cls_layer_add = nn.Linear(3 * self.anchor_feat_channels * self.fmap_h, 2)
+        self.reg_layer_add = nn.Linear(3 * self.anchor_feat_channels * self.fmap_h, self.n_offsets + 1)
         self.attention_layer = nn.Linear(self.anchor_feat_channels * self.fmap_h, len(self.anchors) - 1)
         self.initialize_layer(self.attention_layer)
         self.initialize_layer(self.conv1)
@@ -143,6 +145,7 @@ class LaneATT(nn.Module):
 
     def forward(self, x, conf_threshold=None, nms_thres=0, nms_topk=3000):
         batch_features = self.feature_extractor(x)
+        print(batch_features.shape)
         batch_features = self.conv1(batch_features) #减小特征维数
         batch_anchor_features = self.cut_anchor_features(batch_features) # 4*1000*64*11*1
         # print(batch_anchor_features.shape)
@@ -156,6 +159,32 @@ class LaneATT(nn.Module):
             # print(batch_anchor_features.shape)
             resa_anchor_featrues = resa_anchor_featrues.view(-1, self.anchor_feat_channels * self.fmap_h)
             batch_anchor_features = torch.cat((resa_anchor_featrues, batch_anchor_features), dim=1)
+
+        elif self.cfg['add_resa']:
+            # Generate RESA features
+            resa_batch_features  = self.resa(batch_features)
+            resa_anchor_featrues = self.cut_anchor_features(resa_batch_features)
+
+            # Join proposals from all images into a single proposals features batch
+            batch_anchor_features = batch_anchor_features.view(-1, self.anchor_feat_channels * self.fmap_h) #4000*704
+            # print(batch_anchor_features.shape)
+            resa_anchor_featrues = resa_anchor_featrues.view(-1, self.anchor_feat_channels * self.fmap_h)
+
+            # Add attention features
+            softmax = nn.Softmax(dim=1)
+            scores = self.attention_layer(batch_anchor_features) #4000*999
+            attention = softmax(scores).reshape(x.shape[0], len(self.anchors), -1) #4*1000*999
+            attention_matrix = torch.eye(attention.shape[1], device=x.device).repeat(x.shape[0], 1, 1) #4*1000*1000
+            non_diag_inds = torch.nonzero(attention_matrix == 0., as_tuple=False) #3996000*3
+            attention_matrix[:] = 0
+            attention_matrix[non_diag_inds[:, 0], non_diag_inds[:, 1], non_diag_inds[:, 2]] = attention.flatten() #3996000
+            batch_anchor_features = batch_anchor_features.reshape(x.shape[0], len(self.anchors), -1) #4*1000#704(64*11)
+            attention_features = torch.bmm(torch.transpose(batch_anchor_features, 1, 2),
+                                           torch.transpose(attention_matrix, 1, 2)).transpose(1, 2)
+            attention_features = attention_features.reshape(-1, self.anchor_feat_channels * self.fmap_h)
+            batch_anchor_features = batch_anchor_features.reshape(-1, self.anchor_feat_channels * self.fmap_h)
+            batch_anchor_features = torch.cat((resa_anchor_featrues, attention_features, batch_anchor_features), dim=1)
+
 
         else:
             # Join proposals from all images into a single proposals features batch
@@ -177,8 +206,12 @@ class LaneATT(nn.Module):
             batch_anchor_features = torch.cat((attention_features, batch_anchor_features), dim=1)
 
         # Predict
-        cls_logits = self.cls_layer(batch_anchor_features)
-        reg = self.reg_layer(batch_anchor_features)
+        if self.cfg['add_resa']:
+            cls_logits = self.cls_layer_add(batch_anchor_features)
+            reg = self.reg_layer_add(batch_anchor_features) 
+        else:
+            cls_logits = self.cls_layer(batch_anchor_features)
+            reg = self.reg_layer(batch_anchor_features)
 
         # Undo joining
         cls_logits = cls_logits.reshape(x.shape[0], -1, cls_logits.shape[1])
@@ -516,6 +549,10 @@ def get_backbone(backbone, pretrained=False):
     elif backbone == 'resnet18':
         backbone = torch.nn.Sequential(*list(resnet18(pretrained=pretrained).children())[:-2])
         fmap_c = 512
+        stride = 32
+    elif backbone == 'mobilenetv2':
+        backbone = torch.nn.Sequential(*list(mobilenet_v2(pretrained=pretrained).children())[:-1])
+        fmap_c = 1280
         stride = 32
     else:
         raise NotImplementedError('Backbone not implemented: `{}`'.format(backbone))
