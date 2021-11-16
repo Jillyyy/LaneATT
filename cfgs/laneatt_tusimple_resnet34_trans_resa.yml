@@ -30,7 +30,7 @@ lr_scheduler:
   name: CosineAnnealingLR
   parameters:
     T_max: 45400 # 100 * 454 iterations
-resa: False
+resa: True
 ghm: False
 add_resa: False
 trans: True

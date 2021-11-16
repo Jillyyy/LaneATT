@@ -28,9 +28,12 @@ class PositionEmbeddingSine(nn.Module):
 
     def forward(self, mask):
         assert mask is not None
+        #按mask取反，padding区域全0，其他区域全1
         not_mask = ~mask
+        #按 x y 方向计算累加值
         y_embed = not_mask.cumsum(1, dtype=torch.float32)
         x_embed = not_mask.cumsum(2, dtype=torch.float32)
+        #做归一化，-1是累加值最高的地方，先缩放到0～1，乘以scale（2*Pi）
         if self.normalize:
             eps = 1e-6
             y_embed = y_embed / (y_embed[:, -1:, :] + eps) * self.scale
@@ -38,6 +41,7 @@ class PositionEmbeddingSine(nn.Module):
 
         dim_t = torch.arange(
             self.num_pos_feats, dtype=torch.float32, device=mask.device)
+        #通过整除去除奇数，保障连续两个数的数值一样，递增的数列
         dim_t = self.temperature**(2 * (dim_t // 2) / self.num_pos_feats)
 
         pos_x = x_embed[:, :, :, None] / dim_t
@@ -102,7 +106,10 @@ class AttentionLayer(nn.Module):
         x = self.pre_conv(x)
         m_batchsize, _, height, width = x.size()
         if pos is not None:
-            x += pos
+            try:
+                x += pos
+            except:
+                x += pos[:m_batchsize, :, :, :]
         proj_query = self.query_conv(x).view(m_batchsize, -1,
                                              width * height).permute(0, 2, 1)
         proj_key = self.key_conv(x).view(m_batchsize, -1, width * height)

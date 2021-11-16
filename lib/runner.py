@@ -38,6 +38,7 @@ class Runner:
             starting_epoch = last_epoch + 1
         max_epochs = self.cfg['epochs']
         train_loader = self.get_train_dataloader()
+        print(len(train_loader))
         loss_parameters = self.cfg.get_loss_parameters()
         for epoch in trange(starting_epoch, max_epochs + 1, initial=starting_epoch - 1, total=max_epochs):
             self.exp.epoch_start_callback(epoch, max_epochs)
@@ -107,6 +108,7 @@ class Runner:
 
     def get_train_dataloader(self):
         train_dataset = self.cfg.get_dataset('train')
+        # print(len(train_dataset))
         train_loader = torch.utils.data.DataLoader(dataset=train_dataset,
                                                    batch_size=self.cfg['batch_size'],
                                                    shuffle=True,
