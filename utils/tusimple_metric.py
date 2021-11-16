@@ -101,7 +101,8 @@ class LaneEval(object):
             gt_lanes = gt['lanes']
             y_samples = gt['h_samples']
             try:
-                a, p, n, tpn, fpn, fnn= LaneEval.bench(pred_lanes, gt_lanes, y_samples, run_time)
+                a, p, n, tpn, fpn, fnn = LaneEval.bench(pred_lanes, gt_lanes, y_samples, run_time)
+                # a, p, n= LaneEval.bench(pred_lanes, gt_lanes, y_samples, run_time)
             except BaseException as e:
                 raise Exception('Format of lanes error.')
             accuracy += a
