@@ -69,10 +69,11 @@ class LaneEval(object):
         s = sum(line_accs)
         if len(gt) > 4:
             s -= min(line_accs)
+        # print('s_%d fp_%d fn_%d gt_%d pred_%d' , %(s, fp, fn, len(gt), len(pred)))
         if get_matches:
             return s / max(min(4.0, len(gt)), 1.), fp / len(pred) if len(pred) > 0 else 0., fn / max(
                 min(len(gt), 4.), 1.), my_matches, my_accs, my_dists
-        return s / max(min(4.0, len(gt)), 1.), fp / len(pred) if len(pred) > 0 else 0., fn / max(min(len(gt), 4.), 1.)
+        return s / max(min(4.0, len(gt)), 1.), fp / len(pred) if len(pred) > 0 else 0., fn / max(min(len(gt), 4.), 1.), len(gt)-fn, fp, fn
 
     @staticmethod
     def bench_one_submit(pred_file, gt_file):
@@ -85,6 +86,7 @@ class LaneEval(object):
             raise Exception('We do not get the predictions of all the test tasks')
         gts = {img['raw_file']: img for img in json_gt}
         accuracy, fp, fn = 0., 0., 0.
+        tpt, fpt, fnt = 0, 0, 0
         run_times = []
         for pred in json_pred:
             if 'raw_file' not in pred or 'lanes' not in pred or 'run_time' not in pred:
@@ -99,13 +101,19 @@ class LaneEval(object):
             gt_lanes = gt['lanes']
             y_samples = gt['h_samples']
             try:
-                a, p, n = LaneEval.bench(pred_lanes, gt_lanes, y_samples, run_time)
+                a, p, n, tpn, fpn, fnn= LaneEval.bench(pred_lanes, gt_lanes, y_samples, run_time)
             except BaseException as e:
                 raise Exception('Format of lanes error.')
             accuracy += a
             fp += p
             fn += n
+            tpt += tpn
+            fpt += fpn
+            fnt += fnn
         num = len(gts)
+        P = tpt / (tpt+fpt)
+        R = tpt / (tpt+fnt)
+        F1 = 2 * P * R / (P + R)
         # the first return parameter is the default ranking parameter
         return json.dumps([{
             'name': 'Accuracy',
@@ -118,6 +126,30 @@ class LaneEval(object):
         }, {
             'name': 'FN',
             'value': fn / num,
+            'order': 'asc'
+        }, {
+            'name': 'TP_Total',
+            'value': tpt,
+            'order': 'asc'
+        }, {
+            'name': 'FP_Total',
+            'value': fpt,
+            'order': 'asc'
+        }, {
+            'name': 'FN_Total',
+            'value': fnt,
+            'order': 'asc'
+        }, {
+            'name': 'Precision',
+            'value': P,
+            'order': 'asc'
+        }, {
+            'name': 'Recall',
+            'value': R,
+            'order': 'asc'
+        }, {
+            'name': 'F1',
+            'value': F1,
             'order': 'asc'
         }, {
             'name': 'FPS',

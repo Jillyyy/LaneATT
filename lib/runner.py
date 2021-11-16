@@ -76,7 +76,7 @@ class Runner:
         model = self.cfg.get_model(self.cfg)
         model_path = self.exp.get_checkpoint_path(epoch)
         self.logger.info('Loading model %s', model_path)
-        model.load_state_dict(self.exp.get_epoch_model(epoch))
+        model.load_state_dict(self.exp.get_epoch_model(epoch), strict = False)
         model = model.to(self.device)
         model.eval()
         if on_val:
