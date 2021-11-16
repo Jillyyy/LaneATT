@@ -21,3 +21,4 @@ tmp.*
 
 *.slurm
 *.out
+*.zip

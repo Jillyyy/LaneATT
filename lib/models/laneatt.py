@@ -11,7 +11,7 @@ from nms import nms
 from lib.lane import Lane
 from lib.focal_loss import FocalLoss
 from lib.ghm_loss import GHMC
-from transformer import TransConvEncoderModule
+from .transformer import TransConvEncoderModule
 
 from .resnet import resnet122 as resnet122_cifar
 from .matching import match_proposals_with_targets
@@ -147,8 +147,11 @@ class LaneATT(nn.Module):
 
     def forward(self, x, conf_threshold=None, nms_thres=0, nms_topk=3000):
         batch_features = self.feature_extractor(x)
-        # print(batch_features.shape)
-        batch_features = self.conv1(batch_features) #减小特征维数
+        print(batch_features.shape)
+        if self.cfg['trans']:
+            batch_features = self.trans(batch_features)
+        print(batch_features.shape)
+        # batch_features = self.conv1(batch_features) #减小特征维数
         batch_anchor_features = self.cut_anchor_features(batch_features) # 4*1000*64*11*1
         # print(batch_anchor_features.shape)
         if self.cfg['resa']:
