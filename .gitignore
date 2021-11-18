@@ -1,6 +1,7 @@
 tensorboard/
 experiments/
 datasets/
+cache/
 
 __pycache__/
 */*.un~
