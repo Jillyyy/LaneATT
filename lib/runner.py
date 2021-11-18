@@ -84,6 +84,7 @@ class Runner:
             dataloader = self.get_val_dataloader()
         else:
             dataloader = self.get_test_dataloader()
+        print(len(dataloader))
         test_parameters = self.cfg.get_test_parameters()
         predictions = []
         self.exp.eval_start_callback(self.cfg)
@@ -118,6 +119,7 @@ class Runner:
 
     def get_test_dataloader(self):
         test_dataset = self.cfg.get_dataset('test')
+        print(len(test_dataset))
         test_loader = torch.utils.data.DataLoader(dataset=test_dataset,
                                                   batch_size=self.cfg['batch_size'] if not self.view else 1,
                                                   shuffle=False,

@@ -150,7 +150,8 @@ class LaneATT(nn.Module):
         # print(batch_features.shape)
         if self.cfg['trans']:
             batch_features = self.trans(batch_features)
-        # batch_features = self.conv1(batch_features) #减小特征维数
+        else:
+            batch_features = self.conv1(batch_features) #减小特征维数
         # print(batch_features.shape)
         batch_anchor_features = self.cut_anchor_features(batch_features) # 4*1000*64*11*1
         # print(batch_anchor_features.shape)

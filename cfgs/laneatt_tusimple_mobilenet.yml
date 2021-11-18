@@ -33,6 +33,7 @@ lr_scheduler:
 resa: False
 ghm: False
 add_resa: False
+trans: False
 
 # Dataset settings
 datasets:

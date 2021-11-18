@@ -37,7 +37,7 @@ class LaneEval(object):
         if running_time > 20000 or len(gt) + 2 < len(pred):
             if get_matches:
                 return 0., 0., 1., [False] * len(pred), [0] * len(pred), [None] * len(pred)
-            return 0., 0., 1., 0, 0, len(gt)
+            return 0., 0., 1.,
         angles = [LaneEval.get_angle(np.array(x_gts), np.array(y_samples)) for x_gts in gt]
         threshs = [LaneEval.pixel_thresh / np.cos(angle) for angle in angles]
         line_accs = []

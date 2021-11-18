@@ -32,6 +32,8 @@ lr_scheduler:
     T_max: 45400 # 100 * 454 iterations
 resa: False
 ghm: True
+add_resa: False
+trans: False
 
 # Dataset settings
 datasets:
