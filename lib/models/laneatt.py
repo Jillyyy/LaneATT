@@ -96,7 +96,8 @@ class LaneATT(nn.Module):
                  img_h=360,
                  anchors_freq_path=None,
                  topk_anchors=None,
-                 anchor_feat_channels=64):
+                 anchor_feat_channels=64,
+                 trans_dims=128):
         super(LaneATT, self).__init__()
         # Some definitions
         self.cfg = cfg
@@ -110,6 +111,7 @@ class LaneATT(nn.Module):
         self.anchor_ys = torch.linspace(1, 0, steps=self.n_offsets, dtype=torch.float32)
         self.anchor_cut_ys = torch.linspace(1, 0, steps=self.fmap_h, dtype=torch.float32)
         self.anchor_feat_channels = anchor_feat_channels
+        self.trans_dims = trans_dims
 
         # Anchor angles, same ones used in Line-CNN
         self.left_angles = [72., 60., 49., 39., 30., 22.]
@@ -133,7 +135,7 @@ class LaneATT(nn.Module):
 
         # Setup and initialize layers
         self.resa = RESA()
-        self.trans = TransConvEncoderModule(attn_in_dims=[backbone_nb_channels, self.anchor_feat_channels], attn_out_dims=[self.anchor_feat_channels, self.anchor_feat_channels], pos_shape=(self.cfg['batch_size'], 12, 20))
+        self.trans = TransConvEncoderModule(attn_in_dims=[backbone_nb_channels, self.trans_dims], attn_out_dims=[self.trans_dims, self.anchor_feat_channels], pos_shape=(self.cfg['batch_size'], 12, 20))
         self.conv1 = nn.Conv2d(backbone_nb_channels, self.anchor_feat_channels, kernel_size=1)
         self.cls_layer = nn.Linear(2 * self.anchor_feat_channels * self.fmap_h, 2)
         self.reg_layer = nn.Linear(2 * self.anchor_feat_channels * self.fmap_h, self.n_offsets + 1)
@@ -146,7 +148,7 @@ class LaneATT(nn.Module):
         self.initialize_layer(self.reg_layer)
 
     def forward(self, x, conf_threshold=None, nms_thres=0, nms_topk=3000):
-        print(x[1].shape)
+        print(x.shape)
         batch_features = self.feature_extractor(x)
         # print(batch_features.shape)
         if self.cfg['trans']:
