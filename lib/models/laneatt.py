@@ -148,7 +148,7 @@ class LaneATT(nn.Module):
         self.initialize_layer(self.reg_layer)
 
     def forward(self, x, conf_threshold=None, nms_thres=0, nms_topk=3000):
-        print(x.shape)
+        # print(x.shape)
         batch_features = self.feature_extractor(x)
         # print(batch_features.shape)
         if self.cfg['trans']:
