@@ -9,7 +9,4 @@
 
 source activate laneatt1
 
-nvidia-smi
-
-python main.py train --exp_name ttxp --cfg cfgs/laneatt_tusimple_resnet34.yml
-
+python main.py train --exp_name r34_trans_128_001 --cfg cfgs/laneatt_tusimple_resnet34_trans_128_001.yml
