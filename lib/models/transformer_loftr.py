@@ -2,6 +2,7 @@ import copy
 import torch
 import torch.nn as nn
 from .linear_attention import LinearAttention, FullAttention
+from .position_encoding import PositionEncodingSine
 
 
 class LoFTREncoderLayer(nn.Module):
@@ -65,10 +66,11 @@ class LocalFeatureTransformer(nn.Module):
         super(LocalFeatureTransformer, self).__init__()
 
         self.config = config
-        self.d_model = config['d_model']
-        self.nhead = config['nhead']
-        self.layer_names = config['layer_names']
-        encoder_layer = LoFTREncoderLayer(config['d_model'], config['nhead'], config['attention'])
+        self.d_model = 64
+        self.nhead = 8
+        self.pos_encoding = PositionEncodingSine(64, temp_bug_fix=False)
+        self.layer_names = ['self', 'self'] * 2
+        encoder_layer = LoFTREncoderLayer(64, 8, 'linear')
         self.layers = nn.ModuleList([copy.deepcopy(encoder_layer) for _ in range(len(self.layer_names))])
         self._reset_parameters()
 
@@ -77,25 +79,24 @@ class LocalFeatureTransformer(nn.Module):
             if p.dim() > 1:
                 nn.init.xavier_uniform_(p)
 
-    def forward(self, feat0, feat1, mask0=None, mask1=None):
+    def forward(self, feat0):
         """
         Args:
-            feat0 (torch.Tensor): [N, L, C]
-            feat1 (torch.Tensor): [N, S, C]
-            mask0 (torch.Tensor): [N, L] (optional)
-            mask1 (torch.Tensor): [N, S] (optional)
+            feat [Bs, C, H, W]
         """
 
-        assert self.d_model == feat0.size(2), "the feature number of src and transformer must be equal"
+        assert self.d_model == feat0.size(1), "the feature number of src and transformer must be equal"
+        bs = feat0.size(0)
+        h = feat0.size(2)
+        w = feat0.size(3)
+        feat0 = self.pos_encoding(feat0).reshape(bs, self.d_model, -1).permute(0,2,1) #
+        # feat1 = self.pos_encoding(feat1).reshape(feat1.size(0), self.d_model, -1).permute(0,2,1) #
 
         for layer, name in zip(self.layers, self.layer_names):
             if name == 'self':
-                feat0 = layer(feat0, feat0, mask0, mask0)
-                feat1 = layer(feat1, feat1, mask1, mask1)
-            elif name == 'cross':
-                feat0 = layer(feat0, feat1, mask0, mask1)
-                feat1 = layer(feat1, feat0, mask1, mask0)
+                feat0 = layer(feat0, feat0)
             else:
                 raise KeyError
+        feat0 = feat0.reshape(bs, -1, h, w)
 
-        return feat0, feat1
+        return feat0
