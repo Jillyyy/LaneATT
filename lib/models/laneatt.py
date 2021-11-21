@@ -12,6 +12,7 @@ from lib.lane import Lane
 from lib.focal_loss import FocalLoss
 from lib.ghm_loss import GHMC
 from .transformer import TransConvEncoderModule
+from .transformer_loftr import LocalFeatureTransformer
 
 from .resnet import resnet122 as resnet122_cifar
 from .matching import match_proposals_with_targets
@@ -135,6 +136,7 @@ class LaneATT(nn.Module):
 
         # Setup and initialize layers
         self.resa = RESA()
+        self.trans_loftr = LocalFeatureTransformer(self.cfg)
         self.trans = TransConvEncoderModule(attn_in_dims=[backbone_nb_channels, self.trans_dims], attn_out_dims=[self.trans_dims, self.anchor_feat_channels], pos_shape=(self.cfg['batch_size'], 12, 20))
         self.conv1 = nn.Conv2d(backbone_nb_channels, self.anchor_feat_channels, kernel_size=1)
         self.cls_layer = nn.Linear(2 * self.anchor_feat_channels * self.fmap_h, 2)
@@ -153,6 +155,9 @@ class LaneATT(nn.Module):
         # print(batch_features.shape)
         if self.cfg['trans']:
             batch_features = self.trans(batch_features)
+        elif self.cfg['trans_loftr']:
+            batch_features = self.conv1(batch_features) 
+            batch_features = self.trans_loftr(batch_features)
         else:
             batch_features = self.conv1(batch_features) #减小特征维数
         # print(batch_features.shape)
