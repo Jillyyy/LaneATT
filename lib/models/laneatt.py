@@ -137,7 +137,7 @@ class LaneATT(nn.Module):
         # Setup and initialize layers
         self.resa = RESA()
         self.trans_loftr = LocalFeatureTransformer(self.cfg)
-        self.trans = TransConvEncoderModule(attn_in_dims=[backbone_nb_channels, self.trans_dims], attn_out_dims=[self.trans_dims, self.anchor_feat_channels], pos_shape=(self.cfg['batch_size'], 12, 20))
+        self.trans = TransConvEncoderModule(attn_in_dims=[backbone_nb_channels, self.trans_dims], attn_out_dims=[self.trans_dims, self.anchor_feat_channels], pos_shape=(self.cfg['batch_size'], self.cfg['pos_shape_h'], self.cfg['pos_shape_w']))
         self.conv1 = nn.Conv2d(backbone_nb_channels, self.anchor_feat_channels, kernel_size=1)
         self.cls_layer = nn.Linear(2 * self.anchor_feat_channels * self.fmap_h, 2)
         self.reg_layer = nn.Linear(2 * self.anchor_feat_channels * self.fmap_h, self.n_offsets + 1)
