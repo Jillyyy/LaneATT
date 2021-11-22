@@ -4,8 +4,12 @@ import cv2
 import torch
 import numpy as np
 import torch.nn as nn
-from torchvision.models import resnet18, resnet34, mobilenet_v2
+from torchvision.models import resnet18, resnet34, mobilenet_v2, mnasnet1_0
 import torch.nn.functional as F
+
+import matplotlib.pyplot as plt
+import scipy.misc
+import imageio
 
 from nms import nms
 from lib.lane import Lane
@@ -16,6 +20,33 @@ from .transformer_loftr import LocalFeatureTransformer
 
 from .resnet import resnet122 as resnet122_cifar
 from .matching import match_proposals_with_targets
+
+def show_feature_map(img_origin, feature_map, img_name):
+    feature_map = feature_map.squeeze(0)
+    # print(feature_map.shape)
+    fm = torch.abs(feature_map)
+    fmm = F.normalize(torch.sum(fm.mul(fm), dim=0))
+    # print(fmm)
+    up = nn.Upsample(scale_factor=32, mode='bilinear')
+    origin_fmm = up(fmm.unsqueeze(0).unsqueeze(0)).squeeze(0).squeeze(0)
+    # print(origin_fmm.shape)
+    feature_map = feature_map.cpu().numpy()
+    feature_map_num = feature_map.shape[0]
+    row_num = np.ceil(np.sqrt(feature_map_num))
+    plt.figure()
+    # for index in range(1, feature_map_num+1):
+    for index in range(1, 2):
+        # plt.subplot(row_num, row_num, index)
+        # plt.imshow(feature_map[index-1], cmap='hsv')
+        # plt.axis('off')
+        img = cv2.resize(img_origin.permute(1,2,0).cpu().numpy(), (640, 384))
+        plt.imshow(img)
+        plt.imshow(origin_fmm.cpu().numpy(), alpha=0.6, cmap='jet')  #alpha设置透明度, cmap可以选择颜色
+        # plt.imshow()
+        plt.savefig(img_name)
+        # imageio.imsave("./feature_map/"+str(index)+".png", feature_map[index-1])
+        # plt.imsave(img_name, origin_fmm.cpu().numpy(), cmap='jet')
+    plt.show()
 
 class RESA(nn.Module):
     def __init__(self):
@@ -113,6 +144,7 @@ class LaneATT(nn.Module):
         self.anchor_cut_ys = torch.linspace(1, 0, steps=self.fmap_h, dtype=torch.float32)
         self.anchor_feat_channels = anchor_feat_channels
         self.trans_dims = trans_dims
+        self.flag = 0
 
         # Anchor angles, same ones used in Line-CNN
         self.left_angles = [72., 60., 49., 39., 30., 22.]
@@ -151,10 +183,17 @@ class LaneATT(nn.Module):
 
     def forward(self, x, conf_threshold=None, nms_thres=0, nms_topk=3000):
         # print(x.shape)
+        if self.cfg['batch_size'] == 1:
+            img_origin = x.squeeze(0)
         batch_features = self.feature_extractor(x)
-        # print(batch_features.shape)
+        # if self.flag == 1:
+        #     show_feature_map(batch_features, "./feature_map/featrue1.png")
+        print(batch_features.shape)
         if self.cfg['trans']:
             batch_features = self.trans(batch_features)
+            # if self.flag == 0:
+            #     show_feature_map(img_origin, batch_features, "./feature_map/featrue_trans_cat.png")
+            # self.flag += 1
         elif self.cfg['trans_loftr']:
             batch_features = self.conv1(batch_features) 
             batch_features = self.trans_loftr(batch_features)
@@ -166,6 +205,9 @@ class LaneATT(nn.Module):
         if self.cfg['resa']:
             # Generate RESA features
             resa_batch_features  = self.resa(batch_features)
+            # if self.flag == 0:
+            #     show_feature_map(resa_batch_features, "./feature_map/featrue_resa.png")
+            # self.flag += 1
             resa_anchor_featrues = self.cut_anchor_features(resa_batch_features)
 
             # Join proposals from all images into a single proposals features batch
@@ -566,6 +608,10 @@ def get_backbone(backbone, pretrained=False):
         stride = 32
     elif backbone == 'mobilenetv2':
         backbone = torch.nn.Sequential(*list(mobilenet_v2(pretrained=pretrained).children())[:-1])
+        fmap_c = 1280
+        stride = 32
+    elif backbone == 'mnasnet1_0':
+        backbone = torch.nn.Sequential(*list(mnasnet1_0(pretrained=pretrained).children())[:-1])
         fmap_c = 1280
         stride = 32
     else:

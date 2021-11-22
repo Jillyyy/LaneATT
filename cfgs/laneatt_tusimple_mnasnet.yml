@@ -5,12 +5,12 @@ seed: 0
 model:
   name: LaneATT
   parameters:
-    backbone: resnet34
+    backbone: mnasnet1_0
     S: &S 72
     topk_anchors: 1000
+    anchors_freq_path: 'data/tusimple_anchors_freq.pt'
     img_h: &img_h 360
     img_w: &img_w 640
-    trans_dims: 128
 batch_size: 8
 epochs: 100
 loss_parameters: {}
@@ -33,7 +33,7 @@ lr_scheduler:
 resa: False
 ghm: False
 add_resa: False
-trans: True
+trans: False
 trans_loftr: False
 pos_shape_h: 12
 pos_shape_w: 20
