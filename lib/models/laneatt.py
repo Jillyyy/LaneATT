@@ -17,6 +17,7 @@ from lib.focal_loss import FocalLoss
 from lib.ghm_loss import GHMC
 from .transformer import TransConvEncoderModule
 from .transformer_loftr import LocalFeatureTransformer
+from .muxnet import muxnet_m
 
 from .resnet import resnet122 as resnet122_cifar
 from .matching import match_proposals_with_targets
@@ -612,6 +613,10 @@ def get_backbone(backbone, pretrained=False):
         stride = 32
     elif backbone == 'mnasnet1_0':
         backbone = torch.nn.Sequential(*list(mnasnet1_0(pretrained=pretrained).children())[:-1])
+        fmap_c = 1280
+        stride = 32
+    elif backbone == 'muxnet':
+        backbone = torch.nn.Sequential(*list(muxnet_m(pretrained=pretrained).children())[:-1])
         fmap_c = 1280
         stride = 32
     else:
