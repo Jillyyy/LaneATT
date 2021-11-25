@@ -5,7 +5,7 @@ seed: 0
 model:
   name: LaneATT
   parameters:
-    backbone: resnet34
+    backbone: shufflenet_v2_x1_0
     S: &S 72
     topk_anchors: 1000
     anchors_freq_path: 'data/tusimple_anchors_freq.pt'
@@ -34,7 +34,7 @@ resa: False
 ghm: False
 add_resa: False
 trans: False
-trans_loftr: false
+trans_loftr: False
 pos_shape_h: 12
 pos_shape_w: 20
 

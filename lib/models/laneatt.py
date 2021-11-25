@@ -4,7 +4,7 @@ import cv2
 import torch
 import numpy as np
 import torch.nn as nn
-from torchvision.models import resnet18, resnet34, mobilenet_v2, mnasnet1_0
+from torchvision.models import resnet18, resnet34, mobilenet_v2, mnasnet1_0, shufflenet_v2_x1_0
 import torch.nn.functional as F
 
 import matplotlib.pyplot as plt
@@ -187,9 +187,10 @@ class LaneATT(nn.Module):
         if self.cfg['batch_size'] == 1:
             img_origin = x.squeeze(0)
         batch_features = self.feature_extractor(x)
-        # if self.flag == 1:
-        #     show_feature_map(batch_features, "./feature_map/featrue1.png")
-        # print(batch_features.shape)
+        # if self.flag == 0:
+        #     show_feature_map(img_origin, batch_features, "./feature_map/featrue_origin_cat_512.png")
+        # self.flag += 1
+        print(batch_features.shape)
         if self.cfg['trans']:
             batch_features = self.trans(batch_features)
             # if self.flag == 0:
@@ -200,6 +201,9 @@ class LaneATT(nn.Module):
             batch_features = self.trans_loftr(batch_features)
         else:
             batch_features = self.conv1(batch_features) #减小特征维数
+            # if self.flag == 0:
+            #     show_feature_map(img_origin, batch_features, "./feature_map/featrue_origin_cat.png")
+            # self.flag += 1
         # print(batch_features.shape)
         batch_anchor_features = self.cut_anchor_features(batch_features) # 4*1000*64*11*1
         # print(batch_anchor_features.shape)
@@ -616,9 +620,13 @@ def get_backbone(backbone, pretrained=False):
         fmap_c = 1280
         stride = 32
     elif backbone == 'muxnet':
-        backbone = torch.nn.Sequential(*list(muxnet_m(pretrained=pretrained).children())[:-1])
+        backbone = torch.nn.Sequential(*list(muxnet_m(pretrained=pretrained).children())[:-2])
         fmap_c = 1280
         stride = 32
+    elif backbone == 'shufflenet_v2_x1_0':
+        backbone = torch.nn.Sequential(*list(shufflenet_v2_x1_0(pretrained=pretrained).children())[:-1])
+        fmap_c = 1280
+        stride = 32       
     else:
         raise NotImplementedError('Backbone not implemented: `{}`'.format(backbone))
 
