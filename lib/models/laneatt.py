@@ -26,8 +26,9 @@ def show_feature_map(img_origin, feature_map, img_name):
     feature_map = feature_map.squeeze(0)
     # print(feature_map.shape)
     fm = torch.abs(feature_map)
-    fmm = F.normalize(torch.sum(fm.mul(fm), dim=0))
-    # print(fmm)
+    # fmm = F.normalize(torch.sum(fm.mul(fm), dim=0))
+    fmm = F.normalize(torch.sum(fm, dim=0))
+    print(fmm)
     up = nn.Upsample(scale_factor=32, mode='bilinear')
     origin_fmm = up(fmm.unsqueeze(0).unsqueeze(0)).squeeze(0).squeeze(0)
     # print(origin_fmm.shape)
@@ -188,9 +189,9 @@ class LaneATT(nn.Module):
             img_origin = x.squeeze(0)
         batch_features = self.feature_extractor(x)
         # if self.flag == 0:
-        #     show_feature_map(img_origin, batch_features, "./feature_map/featrue_origin_cat_512.png")
+        #     show_feature_map(img_origin, batch_features, "./feature_map/featrue_origin_cat_muxnet.png")
         # self.flag += 1
-        print(batch_features.shape)
+        # print(batch_features.shape)
         if self.cfg['trans']:
             batch_features = self.trans(batch_features)
             # if self.flag == 0:
@@ -625,7 +626,7 @@ def get_backbone(backbone, pretrained=False):
         stride = 32
     elif backbone == 'shufflenet_v2_x1_0':
         backbone = torch.nn.Sequential(*list(shufflenet_v2_x1_0(pretrained=pretrained).children())[:-1])
-        fmap_c = 1280
+        fmap_c = 1024
         stride = 32       
     else:
         raise NotImplementedError('Backbone not implemented: `{}`'.format(backbone))
