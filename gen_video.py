@@ -31,7 +31,8 @@ def add_cover_img(video, cover_path, frames=90):
 
 def create_video(filename, width, height, fps=5):
     fourcc = cv2.VideoWriter_fourcc(*'XVID')
-    video = cv2.VideoWriter(filename, fourcc, float(fps), (width, height))
+    print(filename)
+    video = cv2.VideoWriter('ttt.avi', fourcc, float(fps), (width, height))
 
     return video
 
@@ -47,7 +48,9 @@ def main():
     print('Using resolution {}x{}'.format(width, height))
     legend = cv2.imread(args.legend) if args.legend else None
     if not args.view:
-        video = create_video(args.out, width, height + legend.shape[0] if legend is not None else 0, args.fps)
+        # video = create_video(args.out, width, height + legend.shape[0] if legend is not None else 0, args.fps)
+        fourcc = cv2.VideoWriter_fourcc(*'XVID')
+        video = cv2.VideoWriter(args.out, fourcc, float(args.fps), (width, height))
 
     print('Loading predictions...')
     with open(args.pred, "rb") as pred_file:
