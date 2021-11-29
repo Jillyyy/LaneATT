@@ -15,7 +15,7 @@ from nms import nms
 from lib.lane import Lane
 from lib.focal_loss import FocalLoss
 from lib.ghm_loss import GHMC
-from .transformer import TransConvEncoderModule
+from .transformer import TransConvEncoderModule, build_position_encoding
 from .transformer_loftr import LocalFeatureTransformer
 from .muxnet import muxnet_m
 from .vit import Transformer
@@ -172,7 +172,8 @@ class LaneATT(nn.Module):
         # Setup and initialize layers
         self.resa = RESA()
         self.vit = Transformer(dim=1280, depth=6, heads=16, dim_head=64, mlp_dim=2048, dropout=0.1)
-        self.pos_embedding = nn.Parameter(torch.randn(1, 12*20, 1280))
+        # self.pos_embedding = nn.Parameter(torch.randn(1, 12*20, 1280))
+        self.pos_embedding = build_position_encoding(1280, shape=(self.cfg['batch_size'], self.cfg['pos_shape_h'], self.cfg['pos_shape_w'])).cuda()
         self.trans_loftr = LocalFeatureTransformer(self.cfg)
         self.trans = TransConvEncoderModule(attn_in_dims=[backbone_nb_channels, self.trans_dims], attn_out_dims=[self.trans_dims, self.anchor_feat_channels], pos_shape=(self.cfg['batch_size'], self.cfg['pos_shape_h'], self.cfg['pos_shape_w']))
         self.conv1 = nn.Conv2d(backbone_nb_channels, self.anchor_feat_channels, kernel_size=1)
@@ -191,7 +192,7 @@ class LaneATT(nn.Module):
         if self.cfg['batch_size'] == 1:
             img_origin = x.squeeze(0)
         batch_features = self.feature_extractor(x)
-        b, d, _ = x.shape
+        b, d, _, _= x.shape
         # if self.flag == 0:
         #     show_feature_map(img_origin, batch_features, "./feature_map/featrue_origin_cat_muxnet.png")
         # self.flag += 1
@@ -205,10 +206,11 @@ class LaneATT(nn.Module):
             batch_features = self.conv1(batch_features) 
             batch_features = self.trans_loftr(batch_features)
         elif self.cfg['vit']:
+            batch_features = batch_features + self.pos_embedding
             batch_features = batch_features.view(-1, 1280, 12*20).permute(0,2,1)
-            batch_features += self.pos_embedding[:, :d]
             batch_features = self.vit(batch_features)
-            batch_features = batch_features.permute(0,2,1).view(-1, 1280, 12, 20)
+            batch_features = batch_features.permute(0,2,1).reshape(-1, 1280, 12, 20)
+            batch_features = self.conv1(batch_features) 
         else:
             batch_features = self.conv1(batch_features) #减小特征维数
             # if self.flag == 0:
