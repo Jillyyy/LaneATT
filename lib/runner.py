@@ -103,7 +103,7 @@ class Runner:
                     cv2.waitKey(0)
 
         if save_predictions:
-            with open('predictions.pkl', 'wb') as handle:
+            with open('./predictions/predictions.pkl', 'wb') as handle:
                 pickle.dump(predictions, handle, protocol=pickle.HIGHEST_PROTOCOL)
         self.exp.eval_end_callback(dataloader.dataset.dataset, predictions, epoch)
 
