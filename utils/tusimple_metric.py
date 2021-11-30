@@ -112,9 +112,18 @@ class LaneEval(object):
             fpt += fpn
             fnt += fnn
         num = len(gts)
-        P = tpt / (tpt+fpt)
-        R = tpt / (tpt+fnt)
-        F1 = 2 * P * R / (P + R)
+        try:
+            P = tpt / (tpt+fpt)
+        except:
+            P = 0
+        try:
+            R = tpt / (tpt+fnt)
+        except:
+            R = 0
+        try:
+            F1 = 2 * P * R / (P + R)
+        except:
+            F1 = 1
         # the first return parameter is the default ranking parameter
         return json.dumps([{
             'name': 'Accuracy',

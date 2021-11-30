@@ -206,7 +206,7 @@ class LaneATT(nn.Module):
             batch_features = self.conv1(batch_features) 
             batch_features = self.trans_loftr(batch_features)
         elif self.cfg['vit']:
-            batch_features = batch_features + self.pos_embedding
+            batch_features = batch_features + self.pos_embedding[:b, :, :, :]
             batch_features = batch_features.view(-1, 1280, 12*20).permute(0,2,1)
             batch_features = self.vit(batch_features)
             batch_features = batch_features.permute(0,2,1).reshape(-1, 1280, 12, 20)
