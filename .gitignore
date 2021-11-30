@@ -2,6 +2,8 @@ tensorboard/
 experiments/
 datasets/
 cache/
+feature_map/
+pretrained/
 
 __pycache__/
 */*.un~
@@ -23,3 +25,5 @@ tmp.*
 *.slurm
 *.out
 *.zip
+*.pkl
+*.avi
