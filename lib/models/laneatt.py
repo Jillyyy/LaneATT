@@ -176,6 +176,7 @@ class LaneATT(nn.Module):
         self.pos_embedding = build_position_encoding(1280, shape=(self.cfg['batch_size'], self.cfg['pos_shape_h'], self.cfg['pos_shape_w'])).cuda()
         self.trans_loftr = LocalFeatureTransformer(self.cfg)
         self.trans = TransConvEncoderModule(attn_in_dims=[backbone_nb_channels, self.trans_dims], attn_out_dims=[self.trans_dims, self.anchor_feat_channels], pos_shape=(self.cfg['batch_size'], self.cfg['pos_shape_h'], self.cfg['pos_shape_w']))
+        self.trans_new = TransConvEncoderModule(attn_in_dims=[anchor_feat_channels, self.trans_dims], attn_out_dims=[self.trans_dims, self.anchor_feat_channels], pos_shape=(self.cfg['batch_size'], self.cfg['pos_shape_h'], self.cfg['pos_shape_w']))
         self.conv1 = nn.Conv2d(backbone_nb_channels, self.anchor_feat_channels, kernel_size=1)
         self.cls_layer = nn.Linear(2 * self.anchor_feat_channels * self.fmap_h, 2)
         self.reg_layer = nn.Linear(2 * self.anchor_feat_channels * self.fmap_h, self.n_offsets + 1)
@@ -232,6 +233,21 @@ class LaneATT(nn.Module):
             # print(batch_anchor_features.shape)
             resa_anchor_featrues = resa_anchor_featrues.view(-1, self.anchor_feat_channels * self.fmap_h)
             batch_anchor_features = torch.cat((resa_anchor_featrues, batch_anchor_features), dim=1)
+        
+        elif self.cfg['trans_new']:
+            # Generate RESA features
+            trans_batch_features  = self.trans_new(batch_features)
+            # if self.flag == 0:
+            #     show_feature_map(resa_batch_features, "./feature_map/featrue_resa.png")
+            # self.flag += 1
+            trans_anchor_featrues = self.cut_anchor_features(trans_batch_features)
+
+            # Join proposals from all images into a single proposals features batch
+            batch_anchor_features = batch_anchor_features.view(-1, self.anchor_feat_channels * self.fmap_h) #4000*704
+            # print(batch_anchor_features.shape)
+            trans_anchor_featrues = trans_anchor_featrues.view(-1, self.anchor_feat_channels * self.fmap_h)
+            batch_anchor_features = torch.cat((trans_anchor_featrues, batch_anchor_features), dim=1)
+            
 
         elif self.cfg['add_resa']:
             # Generate RESA features

@@ -53,13 +53,13 @@ def match_proposals_with_targets(model, proposals, targets, t_pos=15., t_neg=20.
     invalid_offsets_mask = invalid_offsets_mask.view(num_proposals, num_targets, invalid_offsets_mask.shape[1])
     distances = distances.view(num_proposals, num_targets)  # d[i,j] = distance from proposal i to target j
 
-    positives = distances.min(dim=1)[0] < t_pos
+    positives = distances.min(dim=1)[0] < t_pos #获取positive的proposal的序号，pos则为1
     negatives = distances.min(dim=1)[0] > t_neg
 
     if positives.sum() == 0:
         target_positives_indices = torch.tensor([], device=positives.device, dtype=torch.long)
     else:
-        target_positives_indices = distances[positives].argmin(dim=1)
+        target_positives_indices = distances[positives].argmin(dim=1) #获取pos的proposal对应的target编号
     invalid_offsets_mask = invalid_offsets_mask[positives, target_positives_indices]
 
     return positives, invalid_offsets_mask[:, :-1], negatives, target_positives_indices
