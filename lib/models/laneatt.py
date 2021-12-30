@@ -198,6 +198,8 @@ class LaneATT(nn.Module):
         #     show_feature_map(img_origin, batch_features, "./feature_map/featrue_origin_cat_muxnet.png")
         # self.flag += 1
         # print(batch_features.shape)
+        if self.cfg['trans_new_new']:
+            trans_new_batch_features = self.trans(batch_features)
         if self.cfg['trans']:
             batch_features = self.trans(batch_features)
             # if self.flag == 0:
@@ -247,6 +249,15 @@ class LaneATT(nn.Module):
             # print(batch_anchor_features.shape)
             trans_anchor_featrues = trans_anchor_featrues.view(-1, self.anchor_feat_channels * self.fmap_h)
             batch_anchor_features = torch.cat((trans_anchor_featrues, batch_anchor_features), dim=1)
+        
+        if self.cfg['trans_new_new']:
+            trans_new_anchor_featrues = self.cut_anchor_features(trans_new_batch_features)
+
+            # Join proposals from all images into a single proposals features batch
+            batch_anchor_features = batch_anchor_features.view(-1, self.anchor_feat_channels * self.fmap_h) #4000*704
+            # print(batch_anchor_features.shape)
+            trans_new_anchor_featrues = trans_new_anchor_featrues.view(-1, self.anchor_feat_channels * self.fmap_h)
+            batch_anchor_features = torch.cat((trans_new_anchor_featrues, batch_anchor_features), dim=1)            
             
 
         elif self.cfg['add_resa']:
