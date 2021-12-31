@@ -4,6 +4,7 @@ datasets/
 cache/
 feature_map/
 pretrained/
+images/
 
 __pycache__/
 */*.un~
