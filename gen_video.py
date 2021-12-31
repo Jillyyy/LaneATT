@@ -76,8 +76,11 @@ def main():
         if legend is not None:
             frame = np.vstack((legend, frame))
         if args.view:
-            cv2.imshow('frame', frame)
-            cv2.waitKey(0)
+            # cv2.imshow('frame', frame)
+            # cv2.waitKey(0)
+            # print(idx)
+            cv2.imwrite('images/test_%d.jpg' % idx,frame)
+            print('save img')
         else:
             video.write(frame)
 
