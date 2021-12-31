@@ -195,13 +195,13 @@ class LaneATT(nn.Module):
         batch_features = self.feature_extractor(x)
         b, d, _, _= x.shape
         # if self.flag == 0:
-        #     show_feature_map(img_origin, batch_features, "./feature_map/featrue_origin_cat_muxnet.png")
+        #     show_feature_map(img_origin, batch_features, "./feature_map/featrue_origin_new_new.png")
         # self.flag += 1
         # print(batch_features.shape)
         if self.cfg['trans_new_new']:
             trans_new_batch_features = self.trans(batch_features)
             if self.flag == 0:
-                show_feature_map(img_origin, batch_features, "./feature_map/featrue_trans_cat_new_new.png")
+                show_feature_map(img_origin, trans_new_batch_features, "./feature_map/featrue_trans_cat_new_new.png")
             self.flag += 1
         if self.cfg['trans']:
             batch_features = self.trans(batch_features)
