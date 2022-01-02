@@ -193,6 +193,7 @@ class LaneATT(nn.Module):
         if self.cfg['batch_size'] == 1:
             img_origin = x.squeeze(0)
         batch_features = self.feature_extractor(x)
+        print(batch_features.shape)
         b, d, _, _= x.shape
         # if self.flag == 0:
         #     show_feature_map(img_origin, batch_features, "./feature_map/featrue_origin_new_new.png")
@@ -662,7 +663,8 @@ def get_backbone(backbone, pretrained=False):
         fmap_c = 1280
         stride = 32
     elif backbone == 'muxnet':
-        backbone = torch.nn.Sequential(*list(muxnet_m(pretrained=pretrained).children())[:-2])
+        print(len(*list(muxnet_m(pretrained=pretrained).children())))
+        backbone = torch.nn.Sequential(*list(muxnet_m(pretrained=pretrained).children())[:-3])
         fmap_c = 1280
         stride = 32
     elif backbone == 'shufflenet_v2_x1_0':

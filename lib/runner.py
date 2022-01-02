@@ -31,7 +31,7 @@ class Runner:
         starting_epoch = 1
         model = self.cfg.get_model(self.cfg)
         model = model.to(self.device)
-        self.logger.info('model %s', model)
+        # self.logger.info('model %s', model)
         optimizer = self.cfg.get_optimizer(model.parameters())
         scheduler = self.cfg.get_lr_scheduler(optimizer)
         if self.resume:
