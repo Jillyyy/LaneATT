@@ -5,6 +5,7 @@ cache/
 feature_map/
 pretrained/
 images/
+images_culane/
 
 __pycache__/
 */*.un~

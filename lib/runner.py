@@ -103,7 +103,8 @@ class Runner:
                     cv2.waitKey(0)
 
         if save_predictions:
-            with open('./predictions/predictions_mobile_trans_128_new_new.pkl', 'wb') as handle:
+            print('save')
+            with open('./predictions/predictions_mobile_culane_trans_128_nn.pkl', 'wb') as handle:
                 pickle.dump(predictions, handle, protocol=pickle.HIGHEST_PROTOCOL)
         self.exp.eval_end_callback(dataloader.dataset.dataset, predictions, epoch)
 

@@ -69,6 +69,8 @@ def main():
     else:
         total = len(dataset)
         frame_idxs = np.arange(len(dataset))
+        total = 100
+        frame_idxs = np.arange(15000,15100)
 
     for idx, pred in tqdm(zip(frame_idxs, predictions[frame_idxs]), total=total):
         frame, _, _ = dataset.draw_annotation(idx, pred=pred)
@@ -79,7 +81,7 @@ def main():
             # cv2.imshow('frame', frame)
             # cv2.waitKey(0)
             # print(idx)
-            cv2.imwrite('images/test_%d.jpg' % idx,frame)
+            cv2.imwrite('images_culane/test_%d.jpg' % idx,frame)
             print('save img')
         else:
             video.write(frame)
