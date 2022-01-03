@@ -138,12 +138,19 @@ class LaneATT(nn.Module):
         # Some definitions
         self.cfg = cfg
         self.feature_extractor, backbone_nb_channels, self.stride = get_backbone(backbone, pretrained_backbone)
+        self.deconv = nn.ConvTranspose2d(backbone_nb_channels, backbone_nb_channels, 3, 1, 0, bias=True)
+        self.bn = nn.BatchNorm2d(backbone_nb_channels, eps=1e-3, track_running_stats=True)
         self.img_w = img_w
         self.n_strips = S - 1
         self.n_offsets = S
-        self.fmap_h = img_h // self.stride
-        fmap_w = img_w // self.stride
-        self.fmap_w = fmap_w
+        if self.cfg['deconv']:
+            self.fmap_h = img_h // self.stride * 2
+            fmap_w = img_w // self.stride * 2
+            self.fmap_w = fmap_w * 2
+        else:        
+            self.fmap_h = img_h // self.stride
+            fmap_w = img_w // self.stride
+            self.fmap_w = fmap_w
         self.anchor_ys = torch.linspace(1, 0, steps=self.n_offsets, dtype=torch.float32)
         self.anchor_cut_ys = torch.linspace(1, 0, steps=self.fmap_h, dtype=torch.float32)
         self.anchor_feat_channels = anchor_feat_channels
@@ -193,12 +200,18 @@ class LaneATT(nn.Module):
         self.initialize_layer(self.conv1)
         self.initialize_layer(self.cls_layer)
         self.initialize_layer(self.reg_layer)
+        self.initialize_layer(self.deconv)
+        self.initialize_layer(self.bn)
 
     def forward(self, x, conf_threshold=None, nms_thres=0, nms_topk=3000):
         # print(x.shape)
         if self.cfg['batch_size'] == 1:
             img_origin = x.squeeze(0)
         batch_features = self.feature_extractor(x)
+        if self.cfg['deconv']:
+            batch_features = self.deconv(batch_features)
+            batch_features = self.bn(batch_features)
+            batch_features = F.relu(batch_features)
         print(batch_features.shape)
         b, d, _, _= x.shape
         # if self.flag == 0:
