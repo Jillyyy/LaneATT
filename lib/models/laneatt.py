@@ -132,6 +132,7 @@ class LaneATT(nn.Module):
                  anchors_freq_path=None,
                  topk_anchors=None,
                  anchor_feat_channels=64,
+                 con_anchor_feat_channels=128,
                  trans_dims=128):
         super(LaneATT, self).__init__()
         # Some definitions
@@ -146,6 +147,7 @@ class LaneATT(nn.Module):
         self.anchor_ys = torch.linspace(1, 0, steps=self.n_offsets, dtype=torch.float32)
         self.anchor_cut_ys = torch.linspace(1, 0, steps=self.fmap_h, dtype=torch.float32)
         self.anchor_feat_channels = anchor_feat_channels
+        self.con_anchor_feat_channels = con_anchor_feat_channels
         self.trans_dims = trans_dims
         self.flag = 0
 
@@ -166,8 +168,12 @@ class LaneATT(nn.Module):
             self.anchors_cut = self.anchors_cut[ind]
 
         # Pre compute indices for the anchor pooling
-        self.cut_zs, self.cut_ys, self.cut_xs, self.invalid_mask = self.compute_anchor_cut_indices(
-            self.anchor_feat_channels, fmap_w, self.fmap_h)
+        if self.cfg['trans_con']:
+            self.cut_zs, self.cut_ys, self.cut_xs, self.invalid_mask = self.compute_anchor_cut_indices(
+                self.con_anchor_feat_channels, fmap_w, self.fmap_h)
+        else:
+            self.cut_zs, self.cut_ys, self.cut_xs, self.invalid_mask = self.compute_anchor_cut_indices(
+                self.anchor_feat_channels, fmap_w, self.fmap_h)           
 
         # Setup and initialize layers
         self.resa = RESA()
@@ -199,7 +205,7 @@ class LaneATT(nn.Module):
         #     show_feature_map(img_origin, batch_features, "./feature_map/featrue_origin_new_new.png")
         # self.flag += 1
         # print(batch_features.shape)
-        if self.cfg['trans_new_new']:
+        if self.cfg['trans_new_new'] or self.cfg['trans_con']:
             trans_new_batch_features = self.trans(batch_features)
             # if self.flag == 0:
             #     show_feature_map(img_origin, trans_new_batch_features, "./feature_map/featrue_trans_cat_new_new.png")
@@ -224,90 +230,94 @@ class LaneATT(nn.Module):
             #     show_feature_map(img_origin, batch_features, "./feature_map/featrue_origin_cat.png")
             # self.flag += 1
         # print(batch_features.shape)
-        batch_anchor_features = self.cut_anchor_features(batch_features) # 4*1000*64*11*1
-        # print(batch_anchor_features.shape)
-        if self.cfg['resa']:
-            # Generate RESA features
-            resa_batch_features  = self.resa(batch_features)
-            # if self.flag == 0:
-            #     show_feature_map(resa_batch_features, "./feature_map/featrue_resa.png")
-            # self.flag += 1
-            resa_anchor_featrues = self.cut_anchor_features(resa_batch_features)
-
-            # Join proposals from all images into a single proposals features batch
-            batch_anchor_features = batch_anchor_features.view(-1, self.anchor_feat_channels * self.fmap_h) #4000*704
-            # print(batch_anchor_features.shape)
-            resa_anchor_featrues = resa_anchor_featrues.view(-1, self.anchor_feat_channels * self.fmap_h)
-            batch_anchor_features = torch.cat((resa_anchor_featrues, batch_anchor_features), dim=1)
-        
-        elif self.cfg['trans_new']:
-            # Generate RESA features
-            trans_batch_features  = self.trans_new(batch_features)
-            # if self.flag == 0:
-            #     show_feature_map(resa_batch_features, "./feature_map/featrue_resa.png")
-            # self.flag += 1
-            trans_anchor_featrues = self.cut_anchor_features(trans_batch_features)
-
-            # Join proposals from all images into a single proposals features batch
-            batch_anchor_features = batch_anchor_features.view(-1, self.anchor_feat_channels * self.fmap_h) #4000*704
-            # print(batch_anchor_features.shape)
-            trans_anchor_featrues = trans_anchor_featrues.view(-1, self.anchor_feat_channels * self.fmap_h)
-            batch_anchor_features = torch.cat((trans_anchor_featrues, batch_anchor_features), dim=1)
-        
-        if self.cfg['trans_new_new']:
-            trans_new_anchor_featrues = self.cut_anchor_features(trans_new_batch_features)
-
-            # Join proposals from all images into a single proposals features batch
-            batch_anchor_features = batch_anchor_features.view(-1, self.anchor_feat_channels * self.fmap_h) #4000*704
-            # print(batch_anchor_features.shape)
-            trans_new_anchor_featrues = trans_new_anchor_featrues.view(-1, self.anchor_feat_channels * self.fmap_h)
-            batch_anchor_features = torch.cat((trans_new_anchor_featrues, batch_anchor_features), dim=1)            
-            
-
-        elif self.cfg['add_resa']:
-            # Generate RESA features
-            resa_batch_features  = self.resa(batch_features)
-            resa_anchor_featrues = self.cut_anchor_features(resa_batch_features)
-
-            # Join proposals from all images into a single proposals features batch
-            batch_anchor_features = batch_anchor_features.view(-1, self.anchor_feat_channels * self.fmap_h) #4000*704
-            # print(batch_anchor_features.shape)
-            resa_anchor_featrues = resa_anchor_featrues.view(-1, self.anchor_feat_channels * self.fmap_h)
-
-            # Add attention features
-            softmax = nn.Softmax(dim=1)
-            scores = self.attention_layer(batch_anchor_features) #4000*999
-            attention = softmax(scores).reshape(x.shape[0], len(self.anchors), -1) #4*1000*999
-            attention_matrix = torch.eye(attention.shape[1], device=x.device).repeat(x.shape[0], 1, 1) #4*1000*1000
-            non_diag_inds = torch.nonzero(attention_matrix == 0., as_tuple=False) #3996000*3
-            attention_matrix[:] = 0
-            attention_matrix[non_diag_inds[:, 0], non_diag_inds[:, 1], non_diag_inds[:, 2]] = attention.flatten() #3996000
-            batch_anchor_features = batch_anchor_features.reshape(x.shape[0], len(self.anchors), -1) #4*1000#704(64*11)
-            attention_features = torch.bmm(torch.transpose(batch_anchor_features, 1, 2),
-                                           torch.transpose(attention_matrix, 1, 2)).transpose(1, 2)
-            attention_features = attention_features.reshape(-1, self.anchor_feat_channels * self.fmap_h)
-            batch_anchor_features = batch_anchor_features.reshape(-1, self.anchor_feat_channels * self.fmap_h)
-            batch_anchor_features = torch.cat((resa_anchor_featrues, attention_features, batch_anchor_features), dim=1)
-
-
+        if self.cfg['trans_con']:
+            con_batch_features = torch.cat((trans_new_batch_features, batch_features), dim=1)
+            batch_anchor_features = self.cut_anchor_features(con_batch_features).view(-1, self.con_anchor_feat_channels * self.fmap_h)
         else:
-            # Join proposals from all images into a single proposals features batch
-            batch_anchor_features = batch_anchor_features.view(-1, self.anchor_feat_channels * self.fmap_h) #4000*704
+            batch_anchor_features = self.cut_anchor_features(batch_features) # 4*1000*64*11*1
+            # print(batch_anchor_features.shape)
+            if self.cfg['resa']:
+                # Generate RESA features
+                resa_batch_features  = self.resa(batch_features)
+                # if self.flag == 0:
+                #     show_feature_map(resa_batch_features, "./feature_map/featrue_resa.png")
+                # self.flag += 1
+                resa_anchor_featrues = self.cut_anchor_features(resa_batch_features)
 
-            # Add attention features
-            softmax = nn.Softmax(dim=1)
-            scores = self.attention_layer(batch_anchor_features) #4000*999
-            attention = softmax(scores).reshape(x.shape[0], len(self.anchors), -1) #4*1000*999
-            attention_matrix = torch.eye(attention.shape[1], device=x.device).repeat(x.shape[0], 1, 1) #4*1000*1000
-            non_diag_inds = torch.nonzero(attention_matrix == 0., as_tuple=False) #3996000*3
-            attention_matrix[:] = 0
-            attention_matrix[non_diag_inds[:, 0], non_diag_inds[:, 1], non_diag_inds[:, 2]] = attention.flatten() #3996000
-            batch_anchor_features = batch_anchor_features.reshape(x.shape[0], len(self.anchors), -1) #4*1000#704(64*11)
-            attention_features = torch.bmm(torch.transpose(batch_anchor_features, 1, 2),
-                                           torch.transpose(attention_matrix, 1, 2)).transpose(1, 2)
-            attention_features = attention_features.reshape(-1, self.anchor_feat_channels * self.fmap_h)
-            batch_anchor_features = batch_anchor_features.reshape(-1, self.anchor_feat_channels * self.fmap_h)
-            batch_anchor_features = torch.cat((attention_features, batch_anchor_features), dim=1)
+                # Join proposals from all images into a single proposals features batch
+                batch_anchor_features = batch_anchor_features.view(-1, self.anchor_feat_channels * self.fmap_h) #4000*704
+                # print(batch_anchor_features.shape)
+                resa_anchor_featrues = resa_anchor_featrues.view(-1, self.anchor_feat_channels * self.fmap_h)
+                batch_anchor_features = torch.cat((resa_anchor_featrues, batch_anchor_features), dim=1)
+            
+            elif self.cfg['trans_new']:
+                # Generate RESA features
+                trans_batch_features  = self.trans_new(batch_features)
+                # if self.flag == 0:
+                #     show_feature_map(resa_batch_features, "./feature_map/featrue_resa.png")
+                # self.flag += 1
+                trans_anchor_featrues = self.cut_anchor_features(trans_batch_features)
+
+                # Join proposals from all images into a single proposals features batch
+                batch_anchor_features = batch_anchor_features.view(-1, self.anchor_feat_channels * self.fmap_h) #4000*704
+                # print(batch_anchor_features.shape)
+                trans_anchor_featrues = trans_anchor_featrues.view(-1, self.anchor_feat_channels * self.fmap_h)
+                batch_anchor_features = torch.cat((trans_anchor_featrues, batch_anchor_features), dim=1)
+            
+            elif self.cfg['trans_new_new']:
+                trans_new_anchor_featrues = self.cut_anchor_features(trans_new_batch_features)
+
+                # Join proposals from all images into a single proposals features batch
+                batch_anchor_features = batch_anchor_features.view(-1, self.anchor_feat_channels * self.fmap_h) #4000*704
+                # print(batch_anchor_features.shape)
+                trans_new_anchor_featrues = trans_new_anchor_featrues.view(-1, self.anchor_feat_channels * self.fmap_h)
+                batch_anchor_features = torch.cat((trans_new_anchor_featrues, batch_anchor_features), dim=1)            
+                
+
+            elif self.cfg['add_resa']:
+                # Generate RESA features
+                resa_batch_features  = self.resa(batch_features)
+                resa_anchor_featrues = self.cut_anchor_features(resa_batch_features)
+
+                # Join proposals from all images into a single proposals features batch
+                batch_anchor_features = batch_anchor_features.view(-1, self.anchor_feat_channels * self.fmap_h) #4000*704
+                # print(batch_anchor_features.shape)
+                resa_anchor_featrues = resa_anchor_featrues.view(-1, self.anchor_feat_channels * self.fmap_h)
+
+                # Add attention features
+                softmax = nn.Softmax(dim=1)
+                scores = self.attention_layer(batch_anchor_features) #4000*999
+                attention = softmax(scores).reshape(x.shape[0], len(self.anchors), -1) #4*1000*999
+                attention_matrix = torch.eye(attention.shape[1], device=x.device).repeat(x.shape[0], 1, 1) #4*1000*1000
+                non_diag_inds = torch.nonzero(attention_matrix == 0., as_tuple=False) #3996000*3
+                attention_matrix[:] = 0
+                attention_matrix[non_diag_inds[:, 0], non_diag_inds[:, 1], non_diag_inds[:, 2]] = attention.flatten() #3996000
+                batch_anchor_features = batch_anchor_features.reshape(x.shape[0], len(self.anchors), -1) #4*1000#704(64*11)
+                attention_features = torch.bmm(torch.transpose(batch_anchor_features, 1, 2),
+                                            torch.transpose(attention_matrix, 1, 2)).transpose(1, 2)
+                attention_features = attention_features.reshape(-1, self.anchor_feat_channels * self.fmap_h)
+                batch_anchor_features = batch_anchor_features.reshape(-1, self.anchor_feat_channels * self.fmap_h)
+                batch_anchor_features = torch.cat((resa_anchor_featrues, attention_features, batch_anchor_features), dim=1)
+
+
+            else:
+                # Join proposals from all images into a single proposals features batch
+                batch_anchor_features = batch_anchor_features.view(-1, self.anchor_feat_channels * self.fmap_h) #4000*704
+
+                # Add attention features
+                softmax = nn.Softmax(dim=1)
+                scores = self.attention_layer(batch_anchor_features) #4000*999
+                attention = softmax(scores).reshape(x.shape[0], len(self.anchors), -1) #4*1000*999
+                attention_matrix = torch.eye(attention.shape[1], device=x.device).repeat(x.shape[0], 1, 1) #4*1000*1000
+                non_diag_inds = torch.nonzero(attention_matrix == 0., as_tuple=False) #3996000*3
+                attention_matrix[:] = 0
+                attention_matrix[non_diag_inds[:, 0], non_diag_inds[:, 1], non_diag_inds[:, 2]] = attention.flatten() #3996000
+                batch_anchor_features = batch_anchor_features.reshape(x.shape[0], len(self.anchors), -1) #4*1000#704(64*11)
+                attention_features = torch.bmm(torch.transpose(batch_anchor_features, 1, 2),
+                                            torch.transpose(attention_matrix, 1, 2)).transpose(1, 2)
+                attention_features = attention_features.reshape(-1, self.anchor_feat_channels * self.fmap_h)
+                batch_anchor_features = batch_anchor_features.reshape(-1, self.anchor_feat_channels * self.fmap_h)
+                batch_anchor_features = torch.cat((attention_features, batch_anchor_features), dim=1)
 
         # Predict
         if self.cfg['add_resa']:
@@ -663,8 +673,8 @@ def get_backbone(backbone, pretrained=False):
         fmap_c = 1280
         stride = 32
     elif backbone == 'muxnet':
-        print(len(*list(muxnet_m(pretrained=pretrained).children())))
-        backbone = torch.nn.Sequential(*list(muxnet_m(pretrained=pretrained).children())[:-3])
+        # print(*list(muxnet_m(pretrained=pretrained).children()))
+        backbone = torch.nn.Sequential(*list(muxnet_m(pretrained=pretrained).children())[:-2])
         fmap_c = 1280
         stride = 32
     elif backbone == 'shufflenet_v2_x1_0':
