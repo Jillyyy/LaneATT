@@ -109,6 +109,8 @@ class AttentionLayer(nn.Module):
             try:
                 x += pos
             except:
+                # print('x',x.shape)
+                # print('pos',pos.shape)
                 x += pos[:m_batchsize, :, :, :]
         proj_query = self.query_conv(x).view(m_batchsize, -1,
                                              width * height).permute(0, 2, 1)
@@ -159,6 +161,7 @@ class TransConvEncoderModule(nn.Module):
                 self.pos_embeds.append(pos_embed)
     
     def forward(self, src):
+        # print('src', src.shape)
         # src = self.first_conv(src)
         if self.pos_shape is None:
             src = self.attn_layers(src)

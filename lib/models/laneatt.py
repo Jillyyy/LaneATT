@@ -138,7 +138,7 @@ class LaneATT(nn.Module):
         # Some definitions
         self.cfg = cfg
         self.feature_extractor, backbone_nb_channels, self.stride = get_backbone(backbone, pretrained_backbone)
-        self.deconv = nn.ConvTranspose2d(backbone_nb_channels, backbone_nb_channels, 3, 1, 0, bias=True)
+        self.deconv = nn.ConvTranspose2d(backbone_nb_channels, backbone_nb_channels, 3, stride=2, padding=1, output_padding=1, bias=True)
         self.bn = nn.BatchNorm2d(backbone_nb_channels, eps=1e-3, track_running_stats=True)
         self.img_w = img_w
         self.n_strips = S - 1
@@ -209,10 +209,11 @@ class LaneATT(nn.Module):
             img_origin = x.squeeze(0)
         batch_features = self.feature_extractor(x)
         if self.cfg['deconv']:
+            # print('fea', batch_features.shape)
             batch_features = self.deconv(batch_features)
             batch_features = self.bn(batch_features)
             batch_features = F.relu(batch_features)
-        print(batch_features.shape)
+        # print(batch_features.shape)
         b, d, _, _= x.shape
         # if self.flag == 0:
         #     show_feature_map(img_origin, batch_features, "./feature_map/featrue_origin_new_new.png")
