@@ -195,12 +195,12 @@ class LaneATT(nn.Module):
         # # self.pos_embedding = nn.Parameter(torch.randn(1, 12*20, 1280))
         # self.pos_embedding = build_position_encoding(1280, shape=(self.cfg['batch_size'], self.cfg['pos_shape_h'], self.cfg['pos_shape_w'])).cuda()
         # self.trans_loftr = LocalFeatureTransformer(self.cfg)
-        if self.cfg['trans_con']:
-            self.trans = TransConvEncoderModule(attn_in_dims=[self.trans_in_dims, self.trans_dims], attn_out_dims=[self.trans_dims, self.anchor_feat_channels], pos_shape=(self.cfg['batch_size'], self.cfg['pos_shape_h'], self.cfg['pos_shape_w']))
+        if self.cfg['deconv']:
+            self.trans = TransConvEncoderModule(attn_in_dims=[self.deconv_feat_channels, self.trans_dims], attn_out_dims=[self.trans_dims, self.anchor_feat_channels], pos_shape=(self.cfg['batch_size'], self.cfg['pos_shape_h'], self.cfg['pos_shape_w']))
         else:
             self.trans = TransConvEncoderModule(attn_in_dims=[backbone_nb_channels, self.trans_dims], attn_out_dims=[self.trans_dims, self.anchor_feat_channels], pos_shape=(self.cfg['batch_size'], self.cfg['pos_shape_h'], self.cfg['pos_shape_w']))
         # self.trans_new = TransConvEncoderModule(attn_in_dims=[anchor_feat_channels, self.trans_dims], attn_out_dims=[self.trans_dims, self.anchor_feat_channels], pos_shape=(self.cfg['batch_size'], self.cfg['pos_shape_h'], self.cfg['pos_shape_w']))
-        if self.cfg['trans_con']:
+        if self.cfg['deconv']:
             self.conv1 = nn.Conv2d(self.deconv_feat_channels, self.anchor_feat_channels, kernel_size=1)
         else:
             self.conv1 = nn.Conv2d(backbone_nb_channels, self.anchor_feat_channels, kernel_size=1)
