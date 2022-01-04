@@ -194,9 +194,15 @@ class LaneATT(nn.Module):
         # # self.pos_embedding = nn.Parameter(torch.randn(1, 12*20, 1280))
         # self.pos_embedding = build_position_encoding(1280, shape=(self.cfg['batch_size'], self.cfg['pos_shape_h'], self.cfg['pos_shape_w'])).cuda()
         # self.trans_loftr = LocalFeatureTransformer(self.cfg)
-        self.trans = TransConvEncoderModule(attn_in_dims=[self.trans_in_dims, self.trans_dims], attn_out_dims=[self.trans_dims, self.anchor_feat_channels], pos_shape=(self.cfg['batch_size'], self.cfg['pos_shape_h'], self.cfg['pos_shape_w']))
+        if self.cfg['trans_con']:
+            self.trans = TransConvEncoderModule(attn_in_dims=[self.trans_in_dims, self.trans_dims], attn_out_dims=[self.trans_dims, self.anchor_feat_channels], pos_shape=(self.cfg['batch_size'], self.cfg['pos_shape_h'], self.cfg['pos_shape_w']))
+        else:
+            self.trans = TransConvEncoderModule(attn_in_dims=[backbone_nb_channels, self.trans_dims], attn_out_dims=[self.trans_dims, self.anchor_feat_channels], pos_shape=(self.cfg['batch_size'], self.cfg['pos_shape_h'], self.cfg['pos_shape_w']))
         # self.trans_new = TransConvEncoderModule(attn_in_dims=[anchor_feat_channels, self.trans_dims], attn_out_dims=[self.trans_dims, self.anchor_feat_channels], pos_shape=(self.cfg['batch_size'], self.cfg['pos_shape_h'], self.cfg['pos_shape_w']))
-        self.conv1 = nn.Conv2d(self.deconv_feat_channels, self.anchor_feat_channels, kernel_size=1)
+        if self.cfg['trans_con']:
+            self.conv1 = nn.Conv2d(self.deconv_feat_channels, self.anchor_feat_channels, kernel_size=1)
+        else:
+            self.conv1 = nn.Conv2d(backbone_nb_channels, self.anchor_feat_channels, kernel_size=1)
         self.cls_layer = nn.Linear(2 * self.anchor_feat_channels * self.fmap_h, 2)
         self.reg_layer = nn.Linear(2 * self.anchor_feat_channels * self.fmap_h, self.n_offsets + 1)
         self.cls_layer_add = nn.Linear(3 * self.anchor_feat_channels * self.fmap_h, 2)
@@ -693,9 +699,13 @@ def get_backbone(backbone, pretrained=False):
         fmap_c = 512
         stride = 32
     elif backbone == 'mobilenetv2':
-        backbone = torch.nn.Sequential(*list(mobilenet_v2(pretrained=pretrained).children())[:-1])
-        fmap_c = 1280
-        stride = 32
+        backbone = torch.nn.Sequential(*list(mobilenet_v2(pretrained=pretrained).children())[:-4])
+        fmap_c = 160
+        stride = 16
+    # elif backbone == 'mobilenetv2':
+    #     backbone = torch.nn.Sequential(*list(mobilenet_v2(pretrained=pretrained).children())[:-1])
+    #     fmap_c = 1280
+    #     stride = 32
     elif backbone == 'mnasnet1_0':
         backbone = torch.nn.Sequential(*list(mnasnet1_0(pretrained=pretrained).children())[:-1])
         fmap_c = 1280
