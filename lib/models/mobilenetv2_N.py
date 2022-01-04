@@ -7,6 +7,7 @@ import from https://github.com/tonylins/pytorch-mobilenet-v2
 """
 
 import torch.nn as nn
+import torch
 import math
 
 __all__ = ['mobilenetv2']
@@ -88,9 +89,9 @@ class InvertedResidual(nn.Module):
             return self.conv(x)
 
 
-class MobileNetV2(nn.Module):
+class MobileNetV2_N(nn.Module):
     def __init__(self, num_classes=1000, width_mult=1.):
-        super(MobileNetV2, self).__init__()
+        super(MobileNetV2_N, self).__init__()
         # setting of inverted residual blocks
         self.cfgs = [
             # t, c, n, s
@@ -99,8 +100,8 @@ class MobileNetV2(nn.Module):
             [6,  32, 3, 2],
             [6,  64, 4, 2],
             [6,  96, 3, 1],
-            [6, 160, 3, 2],
-            [6, 320, 1, 1],
+            # [6, 160, 3, 2],
+            # [6, 320, 1, 1],
         ]
 
         # building first layer
@@ -115,19 +116,23 @@ class MobileNetV2(nn.Module):
                 input_channel = output_channel
         self.features = nn.Sequential(*layers)
         # building last several layers
-        output_channel = _make_divisible(1280 * width_mult, 4 if width_mult == 0.1 else 8) if width_mult > 1.0 else 1280
-        self.conv = conv_1x1_bn(input_channel, output_channel)
-        self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
-        self.classifier = nn.Linear(output_channel, num_classes)
+        # output_channel = _make_divisible(1280 * width_mult, 4 if width_mult == 0.1 else 8) if width_mult > 1.0 else 1280
+        # self.conv = conv_1x1_bn(input_channel, output_channel)
+        # self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
+        # self.classifier = nn.Linear(output_channel, num_classes)
+        output_channel = 320
+        self.conv_new = conv_1x1_bn(input_channel, output_channel)
+        # self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
+        # self.classifier = nn.Linear(output_channel, num_classes)
 
         self._initialize_weights()
 
     def forward(self, x):
         x = self.features(x)
-        x = self.conv(x)
-        x = self.avgpool(x)
-        x = x.view(x.size(0), -1)
-        x = self.classifier(x)
+        x = self.conv_new(x)
+        # x = self.avgpool(x)
+        # x = x.view(x.size(0), -1)
+        # x = self.classifier(x)
         return x
 
     def _initialize_weights(self):
@@ -144,8 +149,20 @@ class MobileNetV2(nn.Module):
                 m.weight.data.normal_(0, 0.01)
                 m.bias.data.zero_()
 
-def mobilenetv2(**kwargs):
+def mobilenetv2_N(**kwargs):
     """
     Constructs a MobileNet V2 model
     """
-    return MobileNetV2(**kwargs)
+    model = MobileNetV2_N(**kwargs)
+    pretrained_model = torch.load('pretrained/mobilenetv2-c5e733a8.pth')
+    # print(pretrained_model['net'])
+    print('!!!!!!!!!!!!!load!!!!!!!!!!!!!!!!')
+    # net.load_state_dict(pretrained_model['net'], strict=True)
+    
+    state_dict = model.state_dict()
+    for k in state_dict.keys():
+        if k in pretrained_model:
+            state_dict[k] = pretrained_model[k]
+    model.load_state_dict(state_dict)
+
+    return MobileNetV2_N(**kwargs)

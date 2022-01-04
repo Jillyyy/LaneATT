@@ -19,6 +19,7 @@ from .transformer import TransConvEncoderModule, build_position_encoding
 from .transformer_loftr import LocalFeatureTransformer
 from .muxnet import muxnet_m
 from .vit import Transformer
+from .mobilenetv2_N import mobilenetv2_N
 
 from .resnet import resnet122 as resnet122_cifar
 from .matching import match_proposals_with_targets
@@ -225,6 +226,7 @@ class LaneATT(nn.Module):
         if self.cfg['batch_size'] == 1:
             img_origin = x.squeeze(0)
         batch_features = self.feature_extractor(x)
+        print(batch_features.shape)
         if self.cfg['deconv']:
             # print('fea', batch_features.shape)
             batch_features = self.deconv1(batch_features)
@@ -698,14 +700,18 @@ def get_backbone(backbone, pretrained=False):
         backbone = torch.nn.Sequential(*list(resnet18(pretrained=pretrained).children())[:-2])
         fmap_c = 512
         stride = 32
-    elif backbone == 'mobilenetv2':
-        backbone = torch.nn.Sequential(*list(mobilenet_v2(pretrained=pretrained).children())[:-4])
-        fmap_c = 160
-        stride = 16
     # elif backbone == 'mobilenetv2':
-    #     backbone = torch.nn.Sequential(*list(mobilenet_v2(pretrained=pretrained).children())[:-1])
-    #     fmap_c = 1280
-    #     stride = 32
+    #     backbone = torch.nn.Sequential(*list(mobilenet_v2(pretrained=pretrained).children())[:-2])
+    #     fmap_c = 160
+    #     stride = 16
+    elif backbone == 'mobilenetv2':
+        backbone = torch.nn.Sequential(*list(mobilenet_v2(pretrained=pretrained).children())[:-1])
+        fmap_c = 1280
+        stride = 32
+    elif backbone == "mobilenetv2_N":
+        backbone = mobilenetv2_N()
+        fmap_c = 320
+        stride = 16       
     elif backbone == 'mnasnet1_0':
         backbone = torch.nn.Sequential(*list(mnasnet1_0(pretrained=pretrained).children())[:-1])
         fmap_c = 1280
