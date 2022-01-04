@@ -11,6 +11,7 @@ model:
     anchors_freq_path: 'data/tusimple_anchors_freq.pt'
     img_h: &img_h 360
     img_w: &img_w 640
+    trans_in_dims: 128
     trans_dims: 128
     con_anchor_feat_channels: 128
 batch_size: 8
@@ -39,10 +40,10 @@ trans: False
 trans_loftr: False
 trans_new: False
 trans_new_new: True
-trans_con: False
+trans_con: True
 deconv: True
-pos_shape_h: 24
-pos_shape_w: 40
+pos_shape_h: 48
+pos_shape_w: 80
 vit: False
 
 # Dataset settings

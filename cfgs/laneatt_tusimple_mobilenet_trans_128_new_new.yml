@@ -12,7 +12,7 @@ model:
     img_h: &img_h 360
     img_w: &img_w 640
     trans_dims: 128
-batch_size: 1
+batch_size: 8
 epochs: 100
 loss_parameters: {}
 train_parameters:
@@ -38,6 +38,8 @@ trans: False
 trans_loftr: False
 trans_new: False
 trans_new_new: True
+trans_con: False
+deconv: False
 pos_shape_h: 12
 pos_shape_w: 20
 vit: False

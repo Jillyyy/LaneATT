@@ -38,6 +38,8 @@ trans: False
 trans_loftr: False
 trans_new: False
 trans_new_new: True
+trans_con: False
+deconv: False
 pos_shape_h: 12
 pos_shape_w: 20
 vit: False
