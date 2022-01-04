@@ -144,7 +144,8 @@ class LaneATT(nn.Module):
             self.deconv1 = nn.ConvTranspose2d(backbone_nb_channels, self.trans_in_dims, 3, stride=2, padding=1, output_padding=1, bias=True)
             self.bn1 = nn.BatchNorm2d(self.trans_in_dims, eps=1e-3, track_running_stats=True)
             self.deconv2 = nn.ConvTranspose2d(self.trans_in_dims, self.trans_in_dims, 3, stride=2, padding=1, output_padding=1, bias=True)
-            self.bn2 = nn.BatchNorm2d(self.trans_in_dims, eps=1e-3, track_running_stats=True)         
+            self.bn2 = nn.BatchNorm2d(self.trans_in_dims, eps=1e-3, track_running_stats=True)     
+        self.deconv_feat_channels = trans_in_dims    
         self.img_w = img_w
         self.n_strips = S - 1
         self.n_offsets = S
@@ -195,7 +196,7 @@ class LaneATT(nn.Module):
         # self.trans_loftr = LocalFeatureTransformer(self.cfg)
         self.trans = TransConvEncoderModule(attn_in_dims=[self.trans_in_dims, self.trans_dims], attn_out_dims=[self.trans_dims, self.anchor_feat_channels], pos_shape=(self.cfg['batch_size'], self.cfg['pos_shape_h'], self.cfg['pos_shape_w']))
         # self.trans_new = TransConvEncoderModule(attn_in_dims=[anchor_feat_channels, self.trans_dims], attn_out_dims=[self.trans_dims, self.anchor_feat_channels], pos_shape=(self.cfg['batch_size'], self.cfg['pos_shape_h'], self.cfg['pos_shape_w']))
-        self.conv1 = nn.Conv2d(backbone_nb_channels, self.anchor_feat_channels, kernel_size=1)
+        self.conv1 = nn.Conv2d(self.deconv_feat_channels, self.anchor_feat_channels, kernel_size=1)
         self.cls_layer = nn.Linear(2 * self.anchor_feat_channels * self.fmap_h, 2)
         self.reg_layer = nn.Linear(2 * self.anchor_feat_channels * self.fmap_h, self.n_offsets + 1)
         self.cls_layer_add = nn.Linear(3 * self.anchor_feat_channels * self.fmap_h, 2)
