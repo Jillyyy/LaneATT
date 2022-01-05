@@ -20,6 +20,7 @@ from .transformer_loftr import LocalFeatureTransformer
 from .muxnet import muxnet_m
 from .vit import Transformer
 from .mobilenetv2_N import mobilenetv2_N
+from .ghostnet import ghostnet
 
 from .resnet import resnet122 as resnet122_cifar
 from .matching import match_proposals_with_targets
@@ -711,7 +712,11 @@ def get_backbone(backbone, pretrained=False):
     elif backbone == "mobilenetv2_N":
         backbone = mobilenetv2_N()
         fmap_c = 320
-        stride = 16       
+        stride = 16   
+    elif backbone == "ghostnet":
+        backbone = ghostnet()
+        fmap_c = 1280
+        stride = 32    
     elif backbone == 'mnasnet1_0':
         backbone = torch.nn.Sequential(*list(mnasnet1_0(pretrained=pretrained).children())[:-1])
         fmap_c = 1280

@@ -248,7 +248,18 @@ def ghostnet(**kwargs):
          [5, 960, 160, 0.25, 1]
         ]
     ]
-    return GhostNet(cfgs, **kwargs)
+    model = GhostNet(cfgs, **kwargs)
+    pretrained_model = torch.load('pretrained/state_dict_73.98.pth')
+    # print(pretrained_model['net'])
+    print('!!!!!!!!!!!!!load!!!!!!!!!!!!!!!!')
+    # net.load_state_dict(pretrained_model['net'], strict=True)
+    
+    state_dict = model.state_dict()
+    for k in state_dict.keys():
+        if k in pretrained_model:
+            state_dict[k] = pretrained_model[k]
+    model.load_state_dict(state_dict)    
+    return model
 
 
 if __name__=='__main__':
