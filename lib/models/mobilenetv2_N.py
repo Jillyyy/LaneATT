@@ -165,4 +165,4 @@ def mobilenetv2_N(**kwargs):
             state_dict[k] = pretrained_model[k]
     model.load_state_dict(state_dict)
 
-    return MobileNetV2_N(**kwargs)
+    return model
