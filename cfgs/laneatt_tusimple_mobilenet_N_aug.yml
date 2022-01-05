@@ -5,7 +5,7 @@ seed: 0
 model:
   name: LaneATT
   parameters:
-    backbone: ghostnet
+    backbone: mobilenetv2_N
     S: &S 72
     topk_anchors: 1000
     anchors_freq_path: 'data/tusimple_anchors_freq.pt'
@@ -41,8 +41,8 @@ trans_new: False
 trans_new_new: True
 trans_con: True
 deconv: False
-pos_shape_h: 12
-pos_shape_w: 20
+pos_shape_h: 23
+pos_shape_w: 40
 vit: False
 
 # Dataset settings
@@ -56,6 +56,7 @@ datasets:
       img_size: [*img_h, *img_w]
       max_lanes: *max_lanes
       normalize: false
+      randomerasing: True
       aug_chance: 1.0
       augmentations:
         - name: Affine

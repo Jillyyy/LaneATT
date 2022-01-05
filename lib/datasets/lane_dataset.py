@@ -15,6 +15,7 @@ from .culane import CULane
 from .tusimple import TuSimple
 from .llamas import LLAMAS
 from .nolabel_dataset import NoLabelDataset
+from .transforms import RandomErasing
 
 GT_COLOR = (255, 0, 0)
 PRED_HIT_COLOR = (0, 255, 0)
@@ -29,6 +30,7 @@ class LaneDataset(Dataset):
                  dataset='tusimple',
                  augmentations=None,
                  normalize=False,
+                 randomerasing=False,
                  img_size=(360, 640),
                  aug_chance=1.,
                  **kwargs):
@@ -46,6 +48,7 @@ class LaneDataset(Dataset):
         self.n_strips = S - 1
         self.n_offsets = S
         self.normalize = normalize
+        self.randomerasing = randomerasing
         self.img_h, self.img_w = img_size
         self.strip_size = self.img_h / self.n_strips
         self.logger = logging.getLogger(__name__)
@@ -283,6 +286,9 @@ class LaneDataset(Dataset):
                 if (i + 1) == 30:
                     self.logger.critical('Transform annotation failed 30 times :(')
                     exit()
+                    
+        if self.randomerasing:
+            img = RandomErasing(img)
 
         img = img / 255.
         if self.normalize:

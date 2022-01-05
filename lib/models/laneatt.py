@@ -227,7 +227,7 @@ class LaneATT(nn.Module):
         if self.cfg['batch_size'] == 1:
             img_origin = x.squeeze(0)
         batch_features = self.feature_extractor(x)
-        print(batch_features.shape)
+        # print(batch_features.shape)
         if self.cfg['deconv']:
             # print('fea', batch_features.shape)
             batch_features = self.deconv1(batch_features)
@@ -715,7 +715,7 @@ def get_backbone(backbone, pretrained=False):
         stride = 16   
     elif backbone == "ghostnet":
         backbone = ghostnet()
-        fmap_c = 1280
+        fmap_c = 960
         stride = 32    
     elif backbone == 'mnasnet1_0':
         backbone = torch.nn.Sequential(*list(mnasnet1_0(pretrained=pretrained).children())[:-1])
